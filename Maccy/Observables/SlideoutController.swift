@@ -123,13 +123,44 @@ class SlideoutController {
   }
 
   func computePlacement(window: NSWindow, for size: NSSize) -> SlideoutPlacement {
-    guard let screen = window.screen?.frame else { return placement }
     let windowFrame = window.frame
-    if windowFrame.minX + size.width > screen.maxX {
-      return .left
-    } else {
-      return .right
+    guard let visibleFrame = visibleFrame(for: window) else { return placement }
+    return Self.placement(windowFrame: windowFrame, expandedSize: size, within: visibleFrame)
+  }
+
+  /// Chooses the side with enough room for the preview, or the less constrained
+  /// side if the preview is wider than either remaining gap.
+  static func placement(
+    windowFrame: NSRect,
+    expandedSize: NSSize,
+    within visibleFrame: NSRect
+  ) -> SlideoutPlacement {
+    let previewWidth = max(0, expandedSize.width - windowFrame.width)
+    let rightSpace = visibleFrame.maxX - windowFrame.maxX
+    let leftSpace = windowFrame.minX - visibleFrame.minX
+
+    if rightSpace >= previewWidth { return .right }
+    if leftSpace >= previewWidth { return .left }
+    return rightSpace >= leftSpace ? .right : .left
+  }
+
+  /// `NSWindow.screen` may still refer to the previous display while a floating
+  /// panel is moving between displays or Spaces. Resolve the display from the
+  /// visible portion of the panel instead.
+  private func visibleFrame(for window: NSWindow) -> NSRect? {
+    let windowFrame = window.frame
+    let bestMatch = NSScreen.screens
+      .map(\.visibleFrame)
+      .max { lhs, rhs in
+        let lhsArea = lhs.intersection(windowFrame).width * lhs.intersection(windowFrame).height
+        let rhsArea = rhs.intersection(windowFrame).width * rhs.intersection(windowFrame).height
+        return lhsArea < rhsArea
+      }
+
+    if let bestMatch, !bestMatch.intersection(windowFrame).isEmpty {
+      return bestMatch
     }
+    return window.screen?.visibleFrame
   }
 
   func computeSizeWithPreview(_ size: NSSize, state newState: SlideoutState) -> NSSize {

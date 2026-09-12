@@ -13,6 +13,7 @@
 		7A10A5000000000000000005 /* YippyLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000004 /* YippyLogHandler.swift */; };
 		7A10A5000000000000000007 /* LogsSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000006 /* LogsSettingsPane.swift */; };
 		7A10A5000000000000000009 /* LogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000008 /* LogStoreTests.swift */; };
+		7A10A5000000000000000011 /* SlideoutPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000010 /* SlideoutPlacementTests.swift */; };
 		2F0EC7792E7727E3003E2EA9 /* HeightReaderModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7782E7727E3003E2EA9 /* HeightReaderModifier.swift */; };
 		2F0EC77B2E772899003E2EA9 /* PinsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77A2E772899003E2EA9 /* PinsView.swift */; };
 		2F0EC77D2E773314003E2EA9 /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77C2E773314003E2EA9 /* Selection.swift */; };
@@ -258,6 +259,7 @@
 		7A10A5000000000000000004 /* YippyLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YippyLogHandler.swift; sourceTree = "<group>"; };
 		7A10A5000000000000000006 /* LogsSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsSettingsPane.swift; sourceTree = "<group>"; };
 		7A10A5000000000000000008 /* LogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStoreTests.swift; sourceTree = "<group>"; };
+		7A10A5000000000000000010 /* SlideoutPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideoutPlacementTests.swift; sourceTree = "<group>"; };
 		DA00992C256411F90030E697 /* appcast.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = appcast.xml; sourceTree = "<group>"; };
 		DA00992D256411F90030E697 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DA00992F256411F90030E697 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -776,6 +778,7 @@
 				DA696BD12401EEE900DE80CF /* SorterTests.swift */,
 				B3676C9606A00CBDC8A4CA15 /* StorageTests.swift */,
 				7A10A5000000000000000008 /* LogStoreTests.swift */,
+				7A10A5000000000000000010 /* SlideoutPlacementTests.swift */,
 				DA360DB41E3DF137005C6F6B /* Info.plist */,
 			);
 			path = MaccyTests;
@@ -1153,6 +1156,7 @@
 				DA360DB31E3DF137005C6F6B /* HistoryTests.swift in Sources */,
 				1B1A11A9DD273980A9E3C154 /* StorageTests.swift in Sources */,
 				7A10A5000000000000000009 /* LogStoreTests.swift in Sources */,
+				7A10A5000000000000000011 /* SlideoutPlacementTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
