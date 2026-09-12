@@ -132,6 +132,13 @@ class Popup {
   }
 
   private func handleEvent(_ event: NSEvent) -> NSEvent? {
+    // While a `KeyboardShortcuts.Recorder` is recording, let its keys through untouched. Without
+    // this, a press that matches the *currently saved* "Open" shortcut's key code (e.g. Space,
+    // regardless of modifiers) gets swallowed here before the recorder's own monitor -- which is
+    // installed later, on focus -- ever sees it. This is why recording only failed for a
+    // specific key combo rather than every key.
+    guard !KeyboardShortcuts.isPaused else { return event }
+
     switch event.type {
     case .keyDown:
       return handleKeyDown(event)

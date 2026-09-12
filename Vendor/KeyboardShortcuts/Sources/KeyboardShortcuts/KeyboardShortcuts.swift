@@ -40,8 +40,14 @@ public enum KeyboardShortcuts {
 
 	/**
 	When `true`, event handlers will not be called for registered keyboard shortcuts.
+
+	Set to `true` while a `Recorder`/`RecorderCocoa` is actively recording a new shortcut, and
+	back to `false` when recording ends. Exposed as `public` (vendored fork) so host apps with
+	their own raw `NSEvent` monitors for a shortcut's key (e.g. cycling/holding behavior) can
+	suspend those monitors too — otherwise they can still intercept the key being recorded if it
+	matches the shortcut's *current* value, since they don't go through this module at all.
 	*/
-	static var isPaused = false
+	public static var isPaused = false
 
 	/**
 	Enable/disable monitoring of all keyboard shortcuts.
