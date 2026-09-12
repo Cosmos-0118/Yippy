@@ -259,7 +259,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
-    showMenuBarDropdown()
+    // The status item has one presentation at a time. In particular, after
+    // “Open Clipboard” the next click must close the clipboard panel rather
+    // than reveal the menu underneath it.
+    if menuBarPopover.isShown {
+      menuBarPopover.performClose(nil)
+    } else if panel.isPresented {
+      panel.close()
+    } else {
+      showMenuBarDropdown()
+    }
   }
 
   private func showMenuBarDropdown() {
@@ -274,6 +283,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   func dismissMenuBarDropdown() {
     menuBarPopover.performClose(nil)
+  }
+
+  func openClipboardFromMenuBar() {
+    // Finish the transient popover interaction before making the panel key.
+    dismissMenuBarDropdown()
+    DispatchQueue.main.async {
+      self.panel.open(
+        height: AppState.shared.popup.height,
+        at: .statusItem
+      )
+
+      // The menu popover may already have made the application active, so the
+      // panel does not reliably receive the activation transition that normally
+      // initializes selection. Do it explicitly for this mouse-driven route.
+      DispatchQueue.main.async {
+        let appState = AppState.shared
+        appState.navigator.hoverSelectionWhileKeyboardNavigating = nil
+        appState.navigator.isKeyboardNavigating = false
+        appState.navigator.selectWithoutScrolling(
+          item: appState.history.unpinnedItems.first ?? appState.history.pinnedItems.first
+        )
+      }
+    }
   }
 
   private func synchronizeMenuIconText() {
@@ -328,19 +360,21 @@ private struct MenuBarDropdownView: View {
       }
 
       Button {
-        AppDelegate.shared?.dismissMenuBarDropdown()
-        DispatchQueue.main.async {
-          AppDelegate.shared?.panel.open(
-            height: AppState.shared.popup.height,
-            at: .statusItem
-          )
-        }
+        AppDelegate.shared?.openClipboardFromMenuBar()
       } label: {
         Label("Open Clipboard", systemImage: "clipboard")
+          .font(.headline)
+          .foregroundStyle(.white)
           .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 11)
+          .background(Color.accentColor, in: Capsule())
+          .contentShape(Capsule())
       }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.large)
+      // NSPopover is not always key, which causes AppKit's bordered button
+      // styles to render as an inactive gray control. A custom surface keeps
+      // the primary action visibly active and has no dependency on focus.
+      .buttonStyle(.plain)
 
       Divider()
 
@@ -359,9 +393,7 @@ private struct MenuBarDropdownView: View {
       HStack {
         Button("Preferences…") {
           AppDelegate.shared?.dismissMenuBarDropdown()
-          DispatchQueue.main.async {
-            AppState.shared.openPreferences()
-          }
+          AppState.shared.openPreferences()
         }
 
         Spacer()

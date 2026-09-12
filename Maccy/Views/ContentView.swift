@@ -59,6 +59,12 @@ struct ContentView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .task {
         try? await appState.history.load()
+        // The floating panel's first key-window notification can occur before
+        // this view subscribes to it. Initialize after loading instead of
+        // depending on that notification to establish the first selection.
+        if appState.navigator.leadSelection == nil {
+          appState.navigator.highlightFirst()
+        }
       }
     }
     .animation(.easeInOut(duration: 0.2), value: appState.searchVisible)
