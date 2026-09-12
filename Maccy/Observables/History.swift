@@ -174,6 +174,10 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     // if a duplicate was found as then the size already stayed the same.
     limitHistorySize(to: Defaults[.size] - 1)
 
+    if #available(macOS 15, *) {
+      Storage.shared.pruneHistoryLogIfNeeded()
+    }
+
     sessionLog[Clipboard.shared.changeCount] = item
 
     var itemDecorator: HistoryItemDecorator

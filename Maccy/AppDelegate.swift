@@ -109,6 +109,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     migrateUserDefaults()
     disableUnusedGlobalHotkeys()
 
+    if #available(macOS 15, *) {
+      Storage.shared.pruneHistoryLogIfNeeded()
+    }
+
     panel = FloatingPanel(
       contentRect: NSRect(origin: .zero, size: Defaults[.windowSize]),
       identifier: Bundle.main.bundleIdentifier ?? "dev.cosmos0118.Yippy",
