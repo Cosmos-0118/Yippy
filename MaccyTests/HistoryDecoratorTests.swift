@@ -134,6 +134,21 @@ class HistoryItemDecoratorTests: XCTestCase {
     XCTAssertEqual(itemDecorator.attributedTitle, nil)
   }
 
+  func testHighlightKeepsMiddleMatchVisibleInLongTitle() {
+    let title = String(repeating: "Earlier clipboard context ", count: 30)
+      + "important target phrase"
+      + String(repeating: " later clipboard context", count: 30)
+    let itemDecorator = historyItemDecorator(title)
+    let targetRange = itemDecorator.title.range(of: "target")!
+
+    itemDecorator.highlight("target", [targetRange])
+
+    let displayTitle = String(itemDecorator.attributedTitle!.characters)
+    XCTAssertTrue(displayTitle.hasPrefix("… "))
+    XCTAssertTrue(displayTitle.contains("important target phrase"))
+    XCTAssertLessThan(displayTitle.count, itemDecorator.title.count)
+  }
+
   private func historyItemDecorator(
     _ value: String?,
     application: String? = "com.apple.finder"

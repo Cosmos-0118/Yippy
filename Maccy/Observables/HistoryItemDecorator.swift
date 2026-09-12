@@ -184,8 +184,9 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
       return
     }
 
-    var attributedString = AttributedString(title.shortened(to: 500))
-    for range in ranges {
+    let display = matchFocusedDisplay(for: ranges)
+    var attributedString = AttributedString(display.text)
+    for range in display.ranges {
       if let lowerBound = AttributedString.Index(range.lowerBound, within: attributedString),
          let upperBound = AttributedString.Index(range.upperBound, within: attributedString) {
         switch Defaults[.highlightMatch] {
@@ -207,6 +208,76 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
 
     attributedTitle = attributedString
   }
+
+  /// Builds a short, search-specific title that keeps the best match visible.
+  /// The full title remains on `item` for copying and accessibility; only the
+  /// one-line visual representation is shortened.
+  private func matchFocusedDisplay(for ranges: [Range<String.Index>]) -> (text: String, ranges: [Range<String.Index>]) {
+    let validRanges = ranges.filter { $0.lowerBound >= title.startIndex && $0.upperBound <= title.endIndex }
+    guard title.count > Self.matchFocusedDisplayLimit,
+          let focalRange = densestMatchRange(in: validRanges) else {
+      return (title.shortened(to: Self.maximumRenderedTitleLength), validRanges)
+    }
+
+    let focalLength = title.distance(from: focalRange.lowerBound, to: focalRange.upperBound)
+    let availableContext = max(0, Self.matchFocusedDisplayLimit - focalLength)
+    let leadingContext = min(Self.leadingMatchContext, availableContext / 3)
+    let trailingContext = availableContext - leadingContext
+    let start = title.index(focalRange.lowerBound, offsetBy: -leadingContext, limitedBy: title.startIndex) ?? title.startIndex
+    let end = title.index(focalRange.upperBound, offsetBy: trailingContext, limitedBy: title.endIndex) ?? title.endIndex
+    let prefix = start > title.startIndex ? "… " : ""
+    let suffix = end < title.endIndex ? " …" : ""
+    let visibleText = String(title[start..<end])
+    let displayText = prefix + visibleText + suffix
+
+    let displayRanges = validRanges.compactMap { range -> Range<String.Index>? in
+      guard range.lowerBound < end, range.upperBound > start else {
+        return nil
+      }
+      let lowerBound = range.lowerBound < start ? start : range.lowerBound
+      let upperBound = range.upperBound > end ? end : range.upperBound
+      let lowerOffset = title.distance(from: start, to: lowerBound) + prefix.count
+      let upperOffset = title.distance(from: start, to: upperBound) + prefix.count
+      let displayStart = displayText.index(displayText.startIndex, offsetBy: lowerOffset)
+      let displayEnd = displayText.index(displayText.startIndex, offsetBy: upperOffset)
+      return displayStart..<displayEnd
+    }
+
+    return (displayText, displayRanges)
+  }
+
+  private func densestMatchRange(in ranges: [Range<String.Index>]) -> Range<String.Index>? {
+    let sortedRanges = ranges.sorted { $0.lowerBound < $1.lowerBound }
+    guard var current = sortedRanges.first else {
+      return nil
+    }
+
+    var candidates: [Range<String.Index>] = []
+    for range in sortedRanges.dropFirst() {
+      let gap = title.distance(from: current.upperBound, to: range.lowerBound)
+      if gap <= Self.matchClusterGap {
+        current = current.lowerBound..<max(current.upperBound, range.upperBound)
+      } else {
+        candidates.append(current)
+        current = range
+      }
+    }
+    candidates.append(current)
+
+    return candidates.max { lhs, rhs in
+      let lhsLength = title.distance(from: lhs.lowerBound, to: lhs.upperBound)
+      let rhsLength = title.distance(from: rhs.lowerBound, to: rhs.upperBound)
+      if lhsLength == rhsLength {
+        return lhs.lowerBound > rhs.lowerBound
+      }
+      return lhsLength < rhsLength
+    }
+  }
+
+  private static let maximumRenderedTitleLength = 500
+  private static let matchFocusedDisplayLimit = 280
+  private static let leadingMatchContext = 48
+  private static let matchClusterGap = 24
 
   @MainActor
   func togglePin() {

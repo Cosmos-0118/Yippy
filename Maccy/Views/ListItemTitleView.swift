@@ -9,7 +9,9 @@ struct ListItemTitleView<Title: View>: View {
       Text(attributedTitle)
         .accessibilityIdentifier("copy-history-item")
         .lineLimit(1)
-        .truncationMode(.middle)
+        // Search titles are deliberately match-focused, so preserve their
+        // leading context and the colored match if the row is still narrow.
+        .truncationMode(.tail)
     } else {
       title()
         .accessibilityIdentifier("copy-history-item")
