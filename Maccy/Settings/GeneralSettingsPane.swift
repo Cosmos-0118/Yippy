@@ -183,6 +183,18 @@ struct PreferencesCard<Content: View>: View {
   }
 }
 
+extension View {
+  /// Keeps controls aligned to a shared right-hand value column inside a card.
+  func preferencesControl(width: CGFloat = 190) -> some View {
+    frame(width: width, alignment: .trailing)
+  }
+
+  /// Makes switch rows use the full card width instead of hugging their labels.
+  func preferencesSwitchRow() -> some View {
+    frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
 #Preview {
   GeneralSettingsPane()
     .environment(\.locale, .init(identifier: "en"))

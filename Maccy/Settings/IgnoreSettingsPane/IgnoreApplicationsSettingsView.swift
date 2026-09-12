@@ -8,7 +8,7 @@ struct IgnoreApplicationsSettingsView: View {
   @State private var selection = ""
 
   var body: some View {
-    VStack(alignment: .leading) {
+    PreferencesCard(title: "Applications", description: "Add apps whose copied content should stay out of history.") {
       List(selection: $selection) {
         ForEach($ignoredApps) { $app in
           if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app) {
@@ -28,7 +28,10 @@ struct IgnoreApplicationsSettingsView: View {
             ).frame(height: 32).padding(.horizontal, 5)
           }
         }
-      }.onDeleteCommand {
+      }
+      .frame(height: 260)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .onDeleteCommand {
         remove(selection)
       }
 
@@ -63,13 +66,16 @@ struct IgnoreApplicationsSettingsView: View {
         Defaults.Toggle(key: .ignoreAllAppsExceptListed) {
           Text("IgnoredAllAppsExceptListed", tableName: "IgnoreSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
       }
 
       Text("IgnoredAppsDescription", tableName: "IgnoreSettings")
         .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .controlSize(.small)
-    }.padding()
+        .foregroundStyle(.secondary)
+        .font(.subheadline)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func remove(_ app: String?) {

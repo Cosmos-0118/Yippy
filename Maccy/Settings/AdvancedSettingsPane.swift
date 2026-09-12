@@ -3,43 +3,58 @@ import Defaults
 
 struct AdvancedSettingsPane: View {
   var body: some View {
-    VStack(alignment: .leading) {
-      Defaults.Toggle(key: .ignoreEvents) {
-        Text("TurnOff", tableName: "AdvancedSettings")
+    VStack(alignment: .leading, spacing: 20) {
+      PreferencesCard(title: "Privacy controls", description: "Control when Yippy is allowed to observe your clipboard.") {
+        Defaults.Toggle(key: .ignoreEvents) {
+          Text("TurnOff", tableName: "AdvancedSettings")
+        }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
+
+        Text("TurnOffDescription", tableName: "AdvancedSettings")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
       }
-      Text("TurnOffDescription", tableName: "AdvancedSettings")
-        .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .controlSize(.small)
-      Text("TurnOffShellScript", tableName: "AdvancedSettings")
-        .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .font(.system(size: 11, design: .monospaced))
-        .controlSize(.small)
-        .padding(.vertical, 2)
-      Text("TurnOffViaMenuIconDescription", tableName: "AdvancedSettings")
-        .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .controlSize(.small)
-      Text("TurnOffNextShellScript", tableName: "AdvancedSettings")
-        .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .font(.system(size: 11, design: .monospaced))
-        .controlSize(.small)
-        .padding(.vertical, 2)
 
-      Divider()
+      PreferencesCard(title: "Automation", description: "Use these commands when a workflow needs to pause clipboard history.") {
+        Text("TurnOffShellScript", tableName: "AdvancedSettings")
+          .textSelection(.enabled)
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-      Defaults.Toggle(key: .clearOnQuit) {
-        Text("ClearHistoryOnQuit", tableName: "AdvancedSettings")
-      }.help(Text("ClearHistoryOnQuitTooltip", tableName: "AdvancedSettings"))
+        Text("TurnOffViaMenuIconDescription", tableName: "AdvancedSettings")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
 
-      Defaults.Toggle(key: .clearSystemClipboard) {
-        Text("ClearSystemClipboard", tableName: "AdvancedSettings")
-      }.help(Text("ClearSystemClipboardTooltip", tableName: "AdvancedSettings"))
+        Text("TurnOffNextShellScript", tableName: "AdvancedSettings")
+          .textSelection(.enabled)
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+      }
+
+      PreferencesCard(title: "On quit", description: "Clear private clipboard data automatically when Yippy closes.") {
+        Defaults.Toggle(key: .clearOnQuit) {
+          Text("ClearHistoryOnQuit", tableName: "AdvancedSettings")
+        }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
+        .help(Text("ClearHistoryOnQuitTooltip", tableName: "AdvancedSettings"))
+
+        Defaults.Toggle(key: .clearSystemClipboard) {
+          Text("ClearSystemClipboard", tableName: "AdvancedSettings")
+        }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
+        .help(Text("ClearSystemClipboardTooltip", tableName: "AdvancedSettings"))
+      }
     }
-    .frame(minWidth: 350, maxWidth: 450)
-    .padding()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

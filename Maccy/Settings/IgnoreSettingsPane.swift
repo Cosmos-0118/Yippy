@@ -1,23 +1,36 @@
 import SwiftUI
 
 struct IgnoreSettingsPane: View {
+  private enum Rule: Hashable {
+    case applications, pasteboardTypes, regularExpressions
+  }
+
+  @State private var rule: Rule = .applications
+
   var body: some View {
-    TabView {
-      IgnoreApplicationsSettingsView()
-        .tabItem {
-          Text("ApplicationsTab", tableName: "IgnoreSettings")
+    VStack(alignment: .leading, spacing: 20) {
+      PreferencesCard(title: "Ignore rules", description: "Choose the kind of clipboard content you want Yippy to skip.") {
+        Picker("Rule type", selection: $rule) {
+          Text("ApplicationsTab", tableName: "IgnoreSettings").tag(Rule.applications)
+          Text("PasteboardTypesTab", tableName: "IgnoreSettings").tag(Rule.pasteboardTypes)
+          Text("RegexpTab", tableName: "IgnoreSettings").tag(Rule.regularExpressions)
         }
-      IgnorePasteboardTypesSettingsView()
-        .tabItem {
-          Text("PasteboardTypesTab", tableName: "IgnoreSettings")
+        .pickerStyle(.segmented)
+      }
+
+      Group {
+        switch rule {
+        case .applications:
+          IgnoreApplicationsSettingsView()
+        case .pasteboardTypes:
+          IgnorePasteboardTypesSettingsView()
+        case .regularExpressions:
+          IgnoreRegexpsSettingsView()
         }
-      IgnoreRegexpsSettingsView()
-        .tabItem {
-          Text("RegexpTab", tableName: "IgnoreSettings")
-        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .frame(maxWidth: 500, minHeight: 400)
-    .padding()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

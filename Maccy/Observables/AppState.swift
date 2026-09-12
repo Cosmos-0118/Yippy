@@ -116,7 +116,11 @@ class AppState {
       window.title = NSLocalizedString("Preferences", comment: "")
       window.titlebarAppearsTransparent = true
       window.isReleasedWhenClosed = false
-      window.center()
+      // Preferences should follow the current Space instead of reopening in the
+      // Space where the window was first created. This is especially important
+      // when Yippy is opened from a full-screen app or another display.
+      window.collectionBehavior = [.auxiliary, .moveToActiveSpace, .fullScreenAuxiliary]
+      center(window, on: preferredSettingsScreen())
       window.contentView = NSHostingView(
         rootView: PreferencesView()
           .environment(self)
@@ -124,8 +128,49 @@ class AppState {
       )
       settingsWindowController = NSWindowController(window: window)
     }
-    settingsWindowController?.showWindow(nil)
-    settingsWindowController?.window?.orderFrontRegardless()
+
+    guard let window = settingsWindowController?.window else { return }
+
+    centerIfNeeded(window, on: preferredSettingsScreen())
+    NSApp.activate(ignoringOtherApps: true)
+    if window.isMiniaturized {
+      window.deminiaturize(nil)
+    }
+    window.makeKeyAndOrderFront(nil)
+  }
+
+  @MainActor
+  private func preferredSettingsScreen() -> NSScreen? {
+    if let panel = appDelegate?.panel, panel.isVisible, let screen = panel.screen {
+      return screen
+    }
+    return NSScreen.main
+  }
+
+  @MainActor
+  private func center(_ window: NSWindow, on screen: NSScreen?) {
+    guard let screen else {
+      window.center()
+      return
+    }
+
+    let visibleFrame = screen.visibleFrame
+    let origin = NSPoint(
+      x: visibleFrame.midX - window.frame.width / 2,
+      y: visibleFrame.midY - window.frame.height / 2
+    )
+    window.setFrameOrigin(origin)
+  }
+
+  @MainActor
+  private func centerIfNeeded(_ window: NSWindow, on screen: NSScreen?) {
+    guard !window.isVisible, let screen else { return }
+
+    let isAlreadyOnTargetScreen = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+      as? NSNumber == screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+    if !isAlreadyOnTargetScreen || !window.frame.intersects(screen.visibleFrame) {
+      center(window, on: screen)
+    }
   }
 
   func quit() {

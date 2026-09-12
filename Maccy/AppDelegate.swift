@@ -6,9 +6,19 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
   static let isTesting = CommandLine.arguments.contains("enable-testing")
+  static weak var shared: AppDelegate?
   var panel: FloatingPanel<ContentView>!
 
   private let logger = Logger(label: "dev.cosmos0118.Yippy")
+
+  private lazy var menuBarPopover: NSPopover = {
+    let popover = NSPopover()
+    popover.behavior = .transient
+    popover.animates = true
+    popover.contentSize = NSSize(width: 280, height: 252)
+    popover.contentViewController = NSHostingController(rootView: MenuBarDropdownView())
+    return popover
+  }()
 
   @objc
   private lazy var statusItem: NSStatusItem = {
@@ -38,6 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var statusItemVisibilityObserver: NSKeyValueObservation?
 
   func applicationWillFinishLaunching(_ notification: Notification) { // swiftlint:disable:this function_body_length
+    Self.shared = self
     #if DEBUG
     if Self.isTesting {
       SPUUpdater(hostBundle: Bundle.main,
@@ -248,7 +259,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
-    panel.toggle(height: AppState.shared.popup.height, at: .statusItem)
+    showMenuBarDropdown()
+  }
+
+  private func showMenuBarDropdown() {
+    guard let button = statusItem.button else { return }
+
+    if menuBarPopover.isShown {
+      menuBarPopover.performClose(nil)
+    } else {
+      menuBarPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+  }
+
+  func dismissMenuBarDropdown() {
+    menuBarPopover.performClose(nil)
   }
 
   private func synchronizeMenuIconText() {
@@ -278,4 +303,77 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
   }
+}
+
+private struct MenuBarDropdownView: View {
+  @Default(.ignoreEvents) private var ignoreEvents
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 10) {
+        Image(nsImage: Defaults[.menuIcon].image)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 24, height: 24)
+          .padding(7)
+          .background(.tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Yippy")
+            .font(.headline)
+          Text("Clipboard history, ready when you are")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      Button {
+        AppDelegate.shared?.dismissMenuBarDropdown()
+        DispatchQueue.main.async {
+          AppDelegate.shared?.panel.open(
+            height: AppState.shared.popup.height,
+            at: .statusItem
+          )
+        }
+      } label: {
+        Label("Open Clipboard", systemImage: "clipboard")
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+
+      Divider()
+
+      Toggle(isOn: $ignoreEvents) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Pause clipboard history")
+          Text("Yippy will not save new copies while paused.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .toggleStyle(.switch)
+
+      Divider()
+
+      HStack {
+        Button("Preferences…") {
+          AppDelegate.shared?.dismissMenuBarDropdown()
+          DispatchQueue.main.async {
+            AppState.shared.openPreferences()
+          }
+        }
+
+        Spacer()
+
+        Button("Quit Yippy") {
+          NSApp.terminate(nil)
+        }
+      }
+      .controlSize(.small)
+    }
+    .padding(16)
+    .frame(width: 280)
+  }
+
 }

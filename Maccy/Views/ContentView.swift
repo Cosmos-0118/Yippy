@@ -42,7 +42,12 @@ struct ContentView: View {
               searchFocused = true
             }
             .onMouseMove {
-              appState.navigator.isKeyboardNavigating = false
+              // `mouseMoved` fires for every pointer event. `NavigationManager` is
+              // observable, so assigning `false` repeatedly invalidates every row
+              // that reads this value, even when it is already in mouse mode.
+              if appState.navigator.isKeyboardNavigating {
+                appState.navigator.isKeyboardNavigating = false
+              }
             }
           } slideout: {
             SlideoutContentView()

@@ -9,7 +9,7 @@ struct IgnorePasteboardTypesSettingsView: View {
   @State private var selection = ""
 
   var body: some View {
-    VStack(alignment: .leading) {
+    PreferencesCard(title: "Pasteboard types", description: "Exclude specific clipboard formats from being remembered.") {
       List(selection: $selection) {
         ForEach(ignoredPasteboardTypes.sorted()) { type in
           TextField("", text: Binding(
@@ -26,6 +26,8 @@ struct IgnorePasteboardTypesSettingsView: View {
           .focused($focus, equals: type)
         }
       }
+      .frame(height: 260)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
       .onDeleteCommand {
         remove(selection)
       }
@@ -53,10 +55,10 @@ struct IgnorePasteboardTypesSettingsView: View {
 
       Text("IgnoredPasteboardTypesDescription", tableName: "IgnoreSettings")
         .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .controlSize(.small)
+        .foregroundStyle(.secondary)
+        .font(.subheadline)
     }
-    .padding()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func remove(_ type: String?) {

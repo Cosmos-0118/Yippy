@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import Defaults
-import Settings
 
 struct AppearanceSettingsPane: View {
   @Default(.popupPosition) private var popupAt
@@ -50,9 +49,11 @@ struct AppearanceSettingsPane: View {
   }()
 
   var body: some View {
-    Settings.Container(contentWidth: 650) {
-      Settings.Section(label: { Text("PopupAt", tableName: "AppearanceSettings") }) {
+    VStack(alignment: .leading, spacing: 20) {
+      PreferencesCard(title: "Window placement", description: "Choose where Yippy appears when you open clipboard history.") {
         HStack {
+          Text("PopupAt", tableName: "AppearanceSettings")
+          Spacer()
           Picker("", selection: $popupAt) {
             ForEach(PopupPosition.allCases) { position in
               if position == .center || position == .lastPosition, screens.count > 1 {
@@ -63,7 +64,8 @@ struct AppearanceSettingsPane: View {
             }
           }
           .labelsHidden()
-          .frame(width: 141, alignment: .leading)
+          .pickerStyle(.menu)
+          .preferencesControl()
           .help(Text("PopupAtTooltip", tableName: "AppearanceSettings"))
           .accessibilityLabel(Text("PopupAt", tableName: "AppearanceSettings"))
 
@@ -79,23 +81,29 @@ struct AppearanceSettingsPane: View {
             .disabled(windowPosition == _windowPosition.defaultValue)
           }
         }
-      }
 
-      Settings.Section(label: { Text("PinTo", tableName: "AppearanceSettings") }) {
-        Picker("", selection: $pinTo) {
-          ForEach(PinsPosition.allCases) { position in
-            Text(position.description)
-          }
-        }
-        .labelsHidden()
-        .frame(width: 141, alignment: .leading)
-        .help(Text("PinToTooltip", tableName: "AppearanceSettings"))
-        .accessibilityLabel(Text("PinTo", tableName: "AppearanceSettings"))
-      }
-
-      Settings.Section(label: { Text("ImageHeight", tableName: "AppearanceSettings") }) {
         HStack {
+          Text("PinTo", tableName: "AppearanceSettings")
+          Spacer()
+          Picker("", selection: $pinTo) {
+            ForEach(PinsPosition.allCases) { position in
+              Text(position.description)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .preferencesControl()
+          .help(Text("PinToTooltip", tableName: "AppearanceSettings"))
+          .accessibilityLabel(Text("PinTo", tableName: "AppearanceSettings"))
+        }
+      }
+
+      PreferencesCard(title: "Previews", description: "Tune the size and timing of clipboard previews.") {
+        HStack {
+          Text("ImageHeight", tableName: "AppearanceSettings")
+          Spacer()
           TextField("", value: $imageHeight, formatter: imageHeightFormatter)
+            .multilineTextAlignment(.trailing)
             .frame(width: 120)
             .help(Text("ImageHeightTooltip", tableName: "AppearanceSettings"))
             .accessibilityLabel(Text("ImageHeight", tableName: "AppearanceSettings"))
@@ -103,17 +111,18 @@ struct AppearanceSettingsPane: View {
             .labelsHidden()
             .accessibilityLabel(Text("ImageHeight", tableName: "AppearanceSettings"))
         }
-      }
 
-      Settings.Section(title: "") {
         Defaults.Toggle(key: .openPreviewAutomatically) {
           Text("OpenPreviewAutomatically", tableName: "AppearanceSettings")
         }
-      }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
 
-      Settings.Section(label: { Text("PreviewDelay", tableName: "AppearanceSettings") }) {
         HStack {
+          Text("PreviewDelay", tableName: "AppearanceSettings")
+          Spacer()
           TextField("", value: $previewDelay, formatter: previewDelayFormatter)
+            .multilineTextAlignment(.trailing)
             .frame(width: 120)
             .help(Text("PreviewDelayTooltip", tableName: "AppearanceSettings"))
             .accessibilityLabel(Text("PreviewDelay", tableName: "AppearanceSettings"))
@@ -122,79 +131,95 @@ struct AppearanceSettingsPane: View {
             .accessibilityLabel(Text("PreviewDelay", tableName: "AppearanceSettings"))
         }
         .disabled(!openPreviewAutomatically)
-      }
 
-      Settings.Section(
-        bottomDivider: true,
-        label: { Text("HighlightMatches", tableName: "AppearanceSettings") }
-      ) {
-        Picker("", selection: $highlightMatch) {
-          ForEach(HighlightMatch.allCases) { match in
-            Text(match.description)
+        HStack {
+          Text("HighlightMatches", tableName: "AppearanceSettings")
+          Spacer()
+          Picker("", selection: $highlightMatch) {
+            ForEach(HighlightMatch.allCases) { match in
+              Text(match.description)
+            }
           }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .preferencesControl()
+          .help(Text("HighlightMatchesTooltip", tableName: "AppearanceSettings"))
+          .accessibilityLabel(Text("HighlightMatches", tableName: "AppearanceSettings"))
         }
-        .labelsHidden()
-        .frame(width: 141, alignment: .leading)
-        .help(Text("HighlightMatchesTooltip", tableName: "AppearanceSettings"))
-        .accessibilityLabel(Text("HighlightMatches", tableName: "AppearanceSettings"))
       }
 
-      Settings.Section(title: "") {
+      PreferencesCard(title: "Content display", description: "Decide which information is visible in the clipboard window.") {
         Defaults.Toggle(key: .showSpecialSymbols) {
           Text("ShowSpecialSymbols", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         .help(Text("ShowSpecialSymbolsTooltip", tableName: "AppearanceSettings"))
 
         HStack {
           Defaults.Toggle(key: .showInStatusBar) {
             Text("ShowMenuIcon", tableName: "AppearanceSettings")
           }
+          .toggleStyle(.switch)
 
+          Spacer()
           Picker("", selection: $menuIcon) {
             ForEach(MenuIcon.allCases) { icon in
               Image(nsImage: icon.image)
             }
           }
           .labelsHidden()
-          .scaledToFit()
+          .pickerStyle(.menu)
+          .preferencesControl(width: 72)
           .disabled(!showInStatusBar)
-          .controlSize(.small)
           .accessibilityLabel(Text("ShowMenuIcon", tableName: "AppearanceSettings"))
         }
 
         Defaults.Toggle(key: .showRecentCopyInMenuBar) {
           Text("ShowRecentCopyInMenuBar", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         HStack {
           Defaults.Toggle(key: .showSearch) {
             Text("ShowSearchField", tableName: "AppearanceSettings")
           }
+          .toggleStyle(.switch)
 
+          Spacer()
           Picker("", selection: $searchVisibility) {
             ForEach(SearchVisibility.allCases) { type in
               Text(type.description)
             }
           }
           .labelsHidden()
-          .scaledToFit()
+          .pickerStyle(.menu)
+          .preferencesControl()
           .disabled(!showSearch)
-          .controlSize(.small)
           .accessibilityLabel(Text("ShowSearchField", tableName: "AppearanceSettings"))
         }
         Defaults.Toggle(key: .showTitle) {
           Text("ShowTitleBeforeSearchField", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         Defaults.Toggle(key: .showApplicationIcons) {
           Text("ShowApplicationIcons", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         Defaults.Toggle(key: .showHexColorSwatch) {
           Text("ShowHexColorSwatch", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         .help(Text("ShowHexColorSwatchTooltip", tableName: "AppearanceSettings"))
 
         Defaults.Toggle(key: .showFooter) {
           Text("ShowFooter", tableName: "AppearanceSettings")
         }
+        .toggleStyle(.switch)
+        .preferencesSwitchRow()
         Text("OpenPreferencesWarning", tableName: "AppearanceSettings")
           .fixedSize(horizontal: false, vertical: true)
           .opacity(showFooter ? 0 : 1)
@@ -202,6 +227,7 @@ struct AppearanceSettingsPane: View {
           .foregroundStyle(.gray)
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
       screens = NSScreen.screens
     }

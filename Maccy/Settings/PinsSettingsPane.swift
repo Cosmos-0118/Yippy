@@ -125,7 +125,7 @@ struct PinsSettingsPane: View {
   @State private var selection: PersistentIdentifier?
 
   var body: some View {
-    VStack(alignment: .leading) {
+    PreferencesCard(title: "Pinned items", description: "Give saved clipboard items a shortcut key, alias, or updated text.") {
       Table(items, selection: $selection) {
         TableColumn(Text("Key", tableName: "PinsSettings")) { item in
           PinPickerView(item: item, availablePins: availablePins)
@@ -143,6 +143,8 @@ struct PinsSettingsPane: View {
           PinValueView(item: item)
         }
       }
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .frame(height: 330)
       .onAppear {
         availablePins = HistoryItem.availablePins(in: items)
       }
@@ -156,11 +158,10 @@ struct PinsSettingsPane: View {
       }
 
       Text("PinCustomizationDescription", tableName: "PinsSettings")
-        .foregroundStyle(.gray)
-        .controlSize(.small)
+        .foregroundStyle(.secondary)
+        .font(.subheadline)
     }
-    .frame(minWidth: 500, minHeight: 400)
-    .padding()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

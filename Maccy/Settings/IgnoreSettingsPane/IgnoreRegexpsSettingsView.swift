@@ -9,7 +9,7 @@ struct IgnoreRegexpsSettingsView: View {
   @State private var selection = ""
 
   var body: some View {
-    VStack(alignment: .leading) {
+    PreferencesCard(title: "Regular expressions", description: "Define patterns for copied text that Yippy should ignore.") {
       List(selection: $selection) {
         ForEach(ignoredRegexps) { regexp in
           TextField("", text: Binding(
@@ -23,7 +23,10 @@ struct IgnoreRegexpsSettingsView: View {
             ignoredRegexps.append(edit)
           }.focused($focus, equals: regexp)
         }
-      }.onDeleteCommand {
+      }
+      .frame(height: 260)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .onDeleteCommand {
         remove(selection)
       }
 
@@ -39,9 +42,10 @@ struct IgnoreRegexpsSettingsView: View {
 
       Text("IgnoredRegexpsDescription", tableName: "IgnoreSettings")
         .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
-        .controlSize(.small)
-    }.padding()
+        .foregroundStyle(.secondary)
+        .font(.subheadline)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func remove(_ regexp: String?) {
