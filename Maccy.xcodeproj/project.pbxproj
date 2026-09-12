@@ -1590,7 +1590,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.MaccyUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.YippyUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -1617,7 +1617,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.MaccyUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.YippyUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -1641,11 +1641,11 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.MaccyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.YippyTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Maccy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Maccy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Yippy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yippy";
 			};
 			name = Debug;
 		};
@@ -1665,11 +1665,11 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.MaccyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.YippyTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Maccy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Maccy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Yippy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yippy";
 			};
 			name = Release;
 		};
@@ -1820,8 +1820,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 2.7.1;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.Maccy;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.Yippy;
+				PRODUCT_MODULE_NAME = Maccy;
+				PRODUCT_NAME = Yippy;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1855,8 +1856,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 2.7.1;
-				PRODUCT_BUNDLE_IDENTIFIER = org.p0deje.Maccy;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmos0118.Yippy;
+				PRODUCT_MODULE_NAME = Maccy;
+				PRODUCT_NAME = Yippy;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
