@@ -219,7 +219,7 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
     _ = withObservationTracking {
       item.pin
     } onChange: {
-      DispatchQueue.main.async {
+      Task { @MainActor in
         if let pin = self.item.pin {
           self.shortcuts = KeyShortcut.create(character: pin)
         }
@@ -232,7 +232,7 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
     _ = withObservationTracking {
       item.title
     } onChange: {
-      DispatchQueue.main.async {
+      Task { @MainActor in
         self.title = self.item.title
         self.synchronizeItemTitle()
       }
