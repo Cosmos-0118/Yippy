@@ -886,9 +886,25 @@
 				DAEE384D1E3DBEB100DD2966 /* Info.plist */,
 				42E9C328301B7F9C00B6B55B /* AppIcon.icon */,
 				DA6373971E4AB9BB00263391 /* Assets.xcassets */,
-				4762D6992467226100B3A2BA /* Localizable.strings */,
+				A1B2C3D4E5F60718293A4B5C /* Resources */,
 			);
 			path = Maccy;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60718293A4B5C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60718293A4B5D /* Localizations */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60718293A4B5D /* Localizations */ = {
+			isa = PBXGroup;
+			children = (
+				4762D6992467226100B3A2BA /* Localizable.strings */,
+			);
+			path = Localizations;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
