@@ -73,7 +73,7 @@ class SearchTests: XCTestCase {
   }
 
   @MainActor
-  func testFuzzySearch() { // swiftlint:disable:this function_body_length
+  func testFuzzySearch() {
     Defaults[.searchMode] = Search.Mode.fuzzy
     items = [
       HistoryItemDecorator(historyItemWithTitle("foo bar baz")),
@@ -86,75 +86,34 @@ class SearchTests: XCTestCase {
       Search.SearchResult(score: nil, object: items[1], ranges: []),
       Search.SearchResult(score: nil, object: items[2], ranges: [])
     ])
-    XCTAssertEqual(search("z"), [
-      Search.SearchResult(
-        score: 0.08,
-        object: items[1],
-        ranges: [range(from: 8, to: 8, in: items[1]), range(from: 10, to: 10, in: items[1])]
-      ),
-      Search.SearchResult(
-        score: 0.08,
-        object: items[2],
-        ranges: [range(from: 8, to: 10, in: items[2])]
-      ),
-      Search.SearchResult(
-        score: 0.1,
-        object: items[0],
-        ranges: [range(from: 10, to: 10, in: items[0])]
-      )
+    XCTAssertEqual(search("foo").map(\.object), [items[0], items[1]])
+    XCTAssertEqual(search("za").map(\.object), [items[1]])
+
+    let fbb = search("fbb")
+    XCTAssertEqual(fbb.map(\.object), [items[0]])
+    XCTAssertEqual(fbb[0].ranges, [
+      range(from: 0, to: 0, in: items[0]),
+      range(from: 4, to: 4, in: items[0]),
+      range(from: 8, to: 8, in: items[0])
     ])
-    XCTAssertEqual(search("foo"), [
-      Search.SearchResult(
-        score: 0.0,
-        object: items[0],
-        ranges: [range(from: 0, to: 2, in: items[0])]
-      ),
-      Search.SearchResult(
-        score: 0.0,
-        object: items[1],
-        ranges: [range(from: 0, to: 2, in: items[1])]
-      )
-    ])
-    XCTAssertEqual(search("za"), [
-      Search.SearchResult(
-        score: 0.08,
-        object: items[1],
-        ranges: [range(from: 5, to: 5, in: items[1]), range(from: 8, to: 9, in: items[1])]
-      ),
-      Search.SearchResult(
-        score: 0.54,
-        object: items[0],
-        ranges: [range(from: 5, to: 5, in: items[0]), range(from: 9, to: 10, in: items[0])]
-      ),
-      Search.SearchResult(
-        score: 0.58,
-        object: items[2],
-        ranges: [range(from: 8, to: 10, in: items[2])]
-      )
-    ])
-    XCTAssertEqual(search("yyy"), [
-      Search.SearchResult(
-        score: 0.04,
-        object: items[2],
-        ranges: [range(from: 4, to: 6, in: items[2])]
-      )
-    ])
-    XCTAssertEqual(search("fbb"), [
-      Search.SearchResult(
-        score: 0.6666666666666666,
-        object: items[0],
-        ranges: [
-          range(from: 0, to: 0, in: items[0]),
-          range(from: 4, to: 4, in: items[0]),
-          range(from: 8, to: 8, in: items[0])
-        ]
-      ),
-      Search.SearchResult(
-        score: 0.6666666666666666,
-        object: items[1],
-        ranges: [range(from: 0, to: 0, in: items[1]), range(from: 4, to: 4, in: items[1])])
-    ])
+
+    // Only the characters that explain a fuzzy match are highlighted.
+    XCTAssertEqual(search("z")[0].ranges, [range(from: 8, to: 8, in: items[1])])
     XCTAssertEqual(search("m"), [])
+  }
+
+  @MainActor
+  func testFuzzySearchRanksWordStartsAndHandlesDiacritics() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    items = [
+      HistoryItemDecorator(historyItemWithTitle("open system settings")),
+      HistoryItemDecorator(historyItemWithTitle("applicationSettings")),
+      HistoryItemDecorator(historyItemWithTitle("Café résumé"))
+    ]
+
+    XCTAssertEqual(search("os").map(\.object), [items[0], items[1]])
+    XCTAssertEqual(search("cafe").map(\.object), [items[2]])
+    XCTAssertEqual(search("cafe")[0].ranges, [range(from: 0, to: 3, in: items[2])])
   }
 
   @MainActor

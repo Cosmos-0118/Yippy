@@ -195,9 +195,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
           attributedString[lowerBound..<upperBound].font = .italic(.body)()
         case .underline:
           attributedString[lowerBound..<upperBound].underlineStyle = .single
-        default:
-          attributedString[lowerBound..<upperBound].backgroundColor = .findHighlightColor
-          attributedString[lowerBound..<upperBound].foregroundColor = .black
+        case .color:
+          // A foreground accent leaves the row's selection state intact and
+          // makes fuzzy subsequences readable instead of looking like text
+          // selection markers.
+          attributedString[lowerBound..<upperBound].foregroundColor = .systemYellow
+          attributedString[lowerBound..<upperBound].font = .bold(.body)()
         }
       }
     }

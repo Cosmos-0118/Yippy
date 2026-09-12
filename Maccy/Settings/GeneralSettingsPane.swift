@@ -25,9 +25,17 @@ struct GeneralSettingsPane: View {
         LaunchAtLogin.Toggle {
           Text("LaunchAtLogin", tableName: "GeneralSettings")
         }
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
         Toggle(isOn: $updater.automaticallyChecksForUpdates) {
           Text("CheckForUpdates", tableName: "GeneralSettings")
         }
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Divider()
+
         Button(
           action: { updater.checkForUpdates() },
           label: { Text("CheckNow", tableName: "GeneralSettings") }
@@ -54,13 +62,18 @@ struct GeneralSettingsPane: View {
       }
 
       PreferencesCard(title: "Search", description: "Set how Yippy matches clipboard history.") {
-        Picker("Search", selection: $searchMode) {
-          ForEach(Search.Mode.allCases) { mode in
-            Text(mode.description)
+        HStack {
+          Text("Search", tableName: "GeneralSettings")
+          Spacer()
+          Picker("", selection: $searchMode) {
+            ForEach(Search.Mode.allCases) { mode in
+              Text(mode.description)
+            }
           }
+          .labelsHidden()
+          .accessibilityLabel(Text("Search", tableName: "GeneralSettings"))
+          .frame(width: 200, alignment: .leading)
         }
-        .accessibilityLabel(Text("Search", tableName: "GeneralSettings"))
-        .frame(maxWidth: 260, alignment: .leading)
       }
 
       PreferencesCard(title: "Paste behavior", description: "Choose what happens when you select an item.") {
@@ -68,31 +81,52 @@ struct GeneralSettingsPane: View {
           Text("PasteAutomatically", tableName: "GeneralSettings")
         }
         .onChange(refreshModifiers)
-        .fixedSize()
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         Defaults.Toggle(key: .removeFormattingByDefault) {
           Text("PasteWithoutFormatting", tableName: "GeneralSettings")
         }
         .onChange(refreshModifiers)
-        .fixedSize()
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Divider()
 
         Text(String(
           format: NSLocalizedString("Modifiers", tableName: "GeneralSettings", comment: ""),
           copyModifier, pasteModifier, pasteWithoutFormatting
         ))
         .fixedSize(horizontal: false, vertical: true)
-        .foregroundStyle(.gray)
+        .foregroundStyle(.secondary)
         .controlSize(.small)
       }
 
       if let notificationsURL {
         Link(destination: notificationsURL) {
-          Label("NotificationsAndSounds", systemImage: "bell.badge")
+          HStack {
+            Label("NotificationsAndSounds", systemImage: "bell.badge")
+              .foregroundStyle(.primary)
+            Spacer()
+            Image(systemName: "arrow.up.forward")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          .padding(14)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+              .fill(Color(nsColor: .controlBackgroundColor))
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+              .strokeBorder(.separator, lineWidth: 1)
+          )
         }
-        .padding(.leading, 4)
+        .buttonStyle(.plain)
       }
     }
-    .frame(maxWidth: 640, alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   @ViewBuilder
@@ -118,7 +152,7 @@ struct GeneralSettingsPane: View {
   }
 }
 
-private struct PreferencesCard<Content: View>: View {
+struct PreferencesCard<Content: View>: View {
   let title: LocalizedStringKey
   let description: LocalizedStringKey
   @ViewBuilder let content: Content
@@ -131,10 +165,21 @@ private struct PreferencesCard<Content: View>: View {
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
-      content
+      VStack(alignment: .leading, spacing: 12) {
+        content
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding(20)
-    .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .fill(Color(nsColor: .controlBackgroundColor))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .strokeBorder(.separator, lineWidth: 1)
+    )
   }
 }
 
