@@ -77,6 +77,17 @@ struct ContentView: View {
          let bundleIdentifier = Bundle.main.bundleIdentifier,
          window.identifier == NSUserInterfaceItemIdentifier(bundleIdentifier) {
         scenePhase = .active
+        // `onAppear` only fires the first time this view is inserted into the
+        // window's hierarchy, but the panel is reused (shown/hidden, never
+        // recreated) for every subsequent open. Without re-asserting focus
+        // here, only the very first open of the app's lifetime ever puts the
+        // keyboard focus in the search field. Toggling through `false` forces
+        // SwiftUI to re-establish first responder even if the stored value
+        // never changed while the window was not key.
+        searchFocused = false
+        DispatchQueue.main.async {
+          searchFocused = true
+        }
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) {

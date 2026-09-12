@@ -127,7 +127,6 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @MainActor
   func insertIntoStorage(_ item: HistoryItem) throws {
-    logger.info("Inserting item with id '\(item.title)'")
     Storage.shared.context.insert(item)
     Storage.shared.context.processPendingChanges()
     try? Storage.shared.context.save()
@@ -155,7 +154,6 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       if !item.fromMaccy {
         item.application = existingHistoryItem.application
       }
-      logger.info("Removing duplicate item '\(item.title)'")
       removedItemIndex = all.firstIndex(where: { $0.item == existingHistoryItem })
       if let removedItemIndex {
         cleanup(all[removedItemIndex])
@@ -205,43 +203,28 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   }
 
   @MainActor
-  private func withLogging(_ msg: String, _ block: () throws -> Void) rethrows {
-    func dataCounts() -> String {
-      let historyItemCount = try? Storage.shared.context.fetchCount(FetchDescriptor<HistoryItem>())
-      let historyContentCount = try? Storage.shared.context.fetchCount(FetchDescriptor<HistoryItemContent>())
-      return "HistoryItem=\(historyItemCount ?? 0) HistoryItemContent=\(historyContentCount ?? 0)"
-    }
-
-    logger.info("\(msg) Before: \(dataCounts())")
-    try? block()
-    logger.info("\(msg) After: \(dataCounts())")
-  }
-
-  @MainActor
   func clear() {
-    withLogging("Clearing history") {
-      all.forEach { item in
-        if item.isUnpinned {
-          cleanup(item)
-        }
+    all.forEach { item in
+      if item.isUnpinned {
+        cleanup(item)
       }
-      all.removeAll(where: \.isUnpinned)
-      sessionLog.removeValues { $0.pin == nil }
-      items = all
-
-      try? Storage.shared.context.transaction {
-        try? Storage.shared.context.delete(
-          model: HistoryItem.self,
-          where: #Predicate { $0.pin == nil }
-        )
-        try? Storage.shared.context.delete(
-          model: HistoryItemContent.self,
-          where: #Predicate { $0.item?.pin == nil }
-        )
-      }
-      Storage.shared.context.processPendingChanges()
-      try? Storage.shared.context.save()
     }
+    all.removeAll(where: \.isUnpinned)
+    sessionLog.removeValues { $0.pin == nil }
+    items = all
+
+    try? Storage.shared.context.transaction {
+      try? Storage.shared.context.delete(
+        model: HistoryItem.self,
+        where: #Predicate { $0.pin == nil }
+      )
+      try? Storage.shared.context.delete(
+        model: HistoryItemContent.self,
+        where: #Predicate { $0.item?.pin == nil }
+      )
+    }
+    Storage.shared.context.processPendingChanges()
+    try? Storage.shared.context.save()
 
     Clipboard.shared.clear()
     AppState.shared.popup.close()
@@ -252,31 +235,29 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @MainActor
   func clearAll() {
-    withLogging("Clearing all history") {
-      all.forEach { item in
-        cleanup(item)
-      }
-      all.removeAll()
-      sessionLog.removeAll()
-      items = all
-
-      do {
-        let context = Storage.shared.context
-        try context.transaction {
-          // Bulk deletion cannot remove children with live inverse relationships.
-          try context.delete(
-            model: HistoryItemContent.self,
-            where: #Predicate { $0.item == nil }
-          )
-          try context.delete(model: HistoryItem.self)
-          try context.delete(model: HistoryItemContent.self)
-        }
-      } catch {
-        logger.error("Failed to clear storage: \(String(reflecting: error))")
-      }
-      Storage.shared.context.processPendingChanges()
-      try? Storage.shared.context.save()
+    all.forEach { item in
+      cleanup(item)
     }
+    all.removeAll()
+    sessionLog.removeAll()
+    items = all
+
+    do {
+      let context = Storage.shared.context
+      try context.transaction {
+        // Bulk deletion cannot remove children with live inverse relationships.
+        try context.delete(
+          model: HistoryItemContent.self,
+          where: #Predicate { $0.item == nil }
+        )
+        try context.delete(model: HistoryItem.self)
+        try context.delete(model: HistoryItemContent.self)
+      }
+    } catch {
+      logger.error("Failed to clear storage: \(String(reflecting: error))")
+    }
+    Storage.shared.context.processPendingChanges()
+    try? Storage.shared.context.save()
 
     Clipboard.shared.clear()
     AppState.shared.popup.close()
@@ -290,11 +271,9 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     guard let item else { return }
 
     cleanup(item)
-    withLogging("Removing history item") {
-      deleteFromStorage(item.item)
-      Storage.shared.context.processPendingChanges()
-      try? Storage.shared.context.save()
-    }
+    deleteFromStorage(item.item)
+    Storage.shared.context.processPendingChanges()
+    try? Storage.shared.context.save()
 
     all.removeAll { $0 == item }
     items.removeAll { $0 == item }
@@ -373,9 +352,6 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     let stack = PasteStack(items: selection.items, modifierFlags: modifierFlags)
     pasteStack = stack
 
-    logger.info("Initialising PasteStack with \(stack.items.count) items")
-    logger.info("Copying \(item.item.title) from PasteStack")
-
     if modifierFlags.isEmpty {
       AppState.shared.popup.close()
       Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
@@ -406,23 +382,17 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       return
     }
 
-    guard let pasted = stack.items.first else {
+    guard stack.items.first != nil else {
       pasteStack = nil
-      logger.info("PasteStack is empty")
       return
     }
-
-    logger.info("PasteStack pasted \(pasted.item.title)")
 
     stack.items.removeFirst()
 
     guard let item = stack.items.first else {
       pasteStack = nil
-      logger.info("PasteStack is empty")
       return
     }
-
-    logger.info("Copying \(item.item.title) from PasteStack. \(stack.items.count) items remaining in stack.")
 
     Task {
       if stack.modifierFlags.isEmpty {
@@ -446,7 +416,6 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     guard pasteStack != nil else {
       return
     }
-    logger.info("Interrupting PasteStack")
     pasteStack = nil
   }
 

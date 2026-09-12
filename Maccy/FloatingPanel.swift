@@ -80,9 +80,21 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     let finalHeight = max(min(height, size.height), miniumHeight)
     setContentSize(NSSize(width: finalWidth, height: finalHeight))
     setFrameOrigin(popupPosition.origin(size: frame.size, statusBarButton: statusBarButton))
-    orderFrontRegardless()
-    makeKey()
+    // `orderFrontRegardless()` deliberately does not activate an agent app.
+    // That leaves this panel visibly frontmost but unable to receive keyboard
+    // input when it is opened over another application's full-screen Space.
+    NSApp.activate(ignoringOtherApps: true)
+    makeKeyAndOrderFront(nil)
     isPresented = true
+
+    // Moving into a full-screen Space is asynchronous. Reassert key status on
+    // the next turn so the source application cannot reclaim it during that
+    // transition.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.isPresented else { return }
+      NSApp.activate(ignoringOtherApps: true)
+      self.makeKeyAndOrderFront(nil)
+    }
 
     if popupPosition == .statusItem {
       DispatchQueue.main.async {

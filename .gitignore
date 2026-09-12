@@ -3,7 +3,9 @@ Maccy.xcodeproj/project.xcworkspace/xcshareddata
 .idea
 .DS_Store
 Maccy/.DS_Store
+build
 Vendor/KeyboardShortcuts/.build
+Vendor/KeyboardShortcuts/build
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json

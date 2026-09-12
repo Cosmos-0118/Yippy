@@ -4,6 +4,10 @@ import SwiftUI
 struct MaccyApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+  init() {
+    YippyLogging.bootstrapOnce()
+  }
+
   // It's impossible to create sceneless application,
   // so we are hacking this around by creating a menubar
   // scene that is always hidden.

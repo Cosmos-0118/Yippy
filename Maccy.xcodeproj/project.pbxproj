@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		0ABDD5122BB47F1E0054963B /* NSWorkspace+ApplicationName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABDD5112BB47F1E0054963B /* NSWorkspace+ApplicationName.swift */; };
 		21FFF308D9217B43FD4C393F /* VoiceOver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21DCA6C3D17E48D33D6E608 /* VoiceOver.swift */; };
+		7A10A5000000000000000003 /* YippyLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000002 /* YippyLogStore.swift */; };
+		7A10A5000000000000000005 /* YippyLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000004 /* YippyLogHandler.swift */; };
+		7A10A5000000000000000007 /* LogsSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000006 /* LogsSettingsPane.swift */; };
+		7A10A5000000000000000009 /* LogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10A5000000000000000008 /* LogStoreTests.swift */; };
 		2F0EC7792E7727E3003E2EA9 /* HeightReaderModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC7782E7727E3003E2EA9 /* HeightReaderModifier.swift */; };
 		2F0EC77B2E772899003E2EA9 /* PinsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77A2E772899003E2EA9 /* PinsView.swift */; };
 		2F0EC77D2E773314003E2EA9 /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0EC77C2E773314003E2EA9 /* Selection.swift */; };
@@ -250,6 +254,10 @@
 		CA110ED10000000000000002 /* CollectionSurroundingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionSurroundingTests.swift; sourceTree = "<group>"; };
 		CF8FD822BE40469D80B10A06 /* pt */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pt; path = pt.lproj/AdvancedSettings.strings; sourceTree = "<group>"; };
 		B21DCA6C3D17E48D33D6E608 /* VoiceOver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOver.swift; sourceTree = "<group>"; };
+		7A10A5000000000000000002 /* YippyLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YippyLogStore.swift; sourceTree = "<group>"; };
+		7A10A5000000000000000004 /* YippyLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YippyLogHandler.swift; sourceTree = "<group>"; };
+		7A10A5000000000000000006 /* LogsSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsSettingsPane.swift; sourceTree = "<group>"; };
+		7A10A5000000000000000008 /* LogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStoreTests.swift; sourceTree = "<group>"; };
 		DA00992C256411F90030E697 /* appcast.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = appcast.xml; sourceTree = "<group>"; };
 		DA00992D256411F90030E697 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DA00992F256411F90030E697 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -701,6 +709,7 @@
 				DA689FAE2C1CD3B00009B887 /* StorageSettings.strings */,
 				DAA365CD2C4BF9DD00A394F8 /* PinsSettingsPane.swift */,
 				DAA365CF2C4C147400A394F8 /* PinsSettings.strings */,
+				7A10A5000000000000000006 /* LogsSettingsPane.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -766,6 +775,7 @@
 				DA384E85232746D800603999 /* SearchTests.swift */,
 				DA696BD12401EEE900DE80CF /* SorterTests.swift */,
 				B3676C9606A00CBDC8A4CA15 /* StorageTests.swift */,
+				7A10A5000000000000000008 /* LogStoreTests.swift */,
 				DA360DB41E3DF137005C6F6B /* Info.plist */,
 			);
 			path = MaccyTests;
@@ -808,6 +818,15 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
+		7A10A5000000000000000001 /* Logging */ = {
+			isa = PBXGroup;
+			children = (
+				7A10A5000000000000000002 /* YippyLogStore.swift */,
+				7A10A5000000000000000004 /* YippyLogHandler.swift */,
+			);
+			path = Logging;
+			sourceTree = "<group>";
+		};
 		DA9C3C632C20E1E80056795D /* IgnoreSettingsPane */ = {
 			isa = PBXGroup;
 			children = (
@@ -848,6 +867,7 @@
 			children = (
 				2FBB7A252B5FECBB00C65BBE /* Extensions */,
 				DA68F91F28BD819E007E2F25 /* Intents */,
+				7A10A5000000000000000001 /* Logging */,
 				DA05B50F2C234C1C006980FE /* Models */,
 				DA3BCB902C3EEC1000B01BC1 /* Observables */,
 				DA181178247D150B00066D55 /* Settings */,
@@ -1132,6 +1152,7 @@
 				FFFC00000000000000000003 /* UnsafeForTitleLayoutTests.swift in Sources */,
 				DA360DB31E3DF137005C6F6B /* HistoryTests.swift in Sources */,
 				1B1A11A9DD273980A9E3C154 /* StorageTests.swift in Sources */,
+				7A10A5000000000000000009 /* LogStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1249,6 +1270,9 @@
 				DA7A753E26A52F0F00DC16EF /* NSImage+Names.swift in Sources */,
 				2F0EC7852E774083003E2EA9 /* PasteStackView.swift in Sources */,
 				DA20FA782B082E1A00056DD5 /* NSSound+Named.swift in Sources */,
+				7A10A5000000000000000003 /* YippyLogStore.swift in Sources */,
+				7A10A5000000000000000005 /* YippyLogHandler.swift in Sources */,
+				7A10A5000000000000000007 /* LogsSettingsPane.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1864,6 +1888,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = MN3X4648SC;
 				ENABLE_HARDENED_RUNTIME = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = AppIcon.icon;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",

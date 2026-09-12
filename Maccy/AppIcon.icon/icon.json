@@ -17,6 +17,7 @@
   },
   "groups" : [
     {
+      "hidden" : true,
       "blur-material-specializations" : [
         {
           "value" : 0.2
@@ -49,6 +50,7 @@
       }
     },
     {
+      "hidden" : true,
       "layers" : [
         {
           "image-name" : "2 - Layer.svg",
@@ -65,6 +67,7 @@
       }
     },
     {
+      "hidden" : true,
       "layers" : [
         {
           "image-name" : "1 - Layer.svg",

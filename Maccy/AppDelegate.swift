@@ -263,7 +263,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // “Open Clipboard” the next click must close the clipboard panel rather
     // than reveal the menu underneath it.
     if menuBarPopover.isShown {
-      menuBarPopover.performClose(nil)
+      dismissMenuBarDropdown()
     } else if panel.isPresented {
       panel.close()
     } else {
@@ -275,14 +275,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     guard let button = statusItem.button else { return }
 
     if menuBarPopover.isShown {
-      menuBarPopover.performClose(nil)
+      dismissMenuBarDropdown()
     } else {
       menuBarPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
   }
 
   func dismissMenuBarDropdown() {
-    menuBarPopover.performClose(nil)
+    // `performClose` mimics a user-driven close (animated, delegate-consulted)
+    // and can still hold key/activation status across the runloop tick that
+    // follows, racing whatever window we open right after. `close()` tears
+    // the popover down immediately, so the next window's `makeKey`/`activate`
+    // isn't fighting a popover still relinquishing focus.
+    menuBarPopover.close()
   }
 
   func openClipboardFromMenuBar() {
@@ -312,7 +317,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     _ = withObservationTracking {
       AppState.shared.menuIconText
     } onChange: {
-      DispatchQueue.main.async {
+      Task { @MainActor in
         if Defaults[.showRecentCopyInMenuBar] {
           self.statusItem.button?.title = AppState.shared.menuIconText
         }
@@ -393,7 +398,13 @@ private struct MenuBarDropdownView: View {
       HStack {
         Button("Preferences…") {
           AppDelegate.shared?.dismissMenuBarDropdown()
-          AppState.shared.openPreferences()
+          // Same reasoning as `openClipboardFromMenuBar`: activating/keying
+          // another window in the same runloop tick as the dismissal races
+          // the popover's own teardown and can leave Preferences frontmost
+          // but not actually key.
+          DispatchQueue.main.async {
+            AppState.shared.openPreferences()
+          }
         }
 
         Spacer()

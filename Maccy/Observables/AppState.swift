@@ -132,11 +132,20 @@ class AppState {
     guard let window = settingsWindowController?.window else { return }
 
     centerIfNeeded(window, on: preferredSettingsScreen())
-    NSApp.activate(ignoringOtherApps: true)
     if window.isMiniaturized {
       window.deminiaturize(nil)
     }
+    NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
+
+    // Full-screen Space activation completes after this call returns. Without
+    // a second key request, the window can be visible yet inactive because the
+    // application that owned the Space reclaims focus during that transition.
+    DispatchQueue.main.async { [weak window] in
+      guard let window, window.isVisible else { return }
+      NSApp.activate(ignoringOtherApps: true)
+      window.makeKeyAndOrderFront(nil)
+    }
   }
 
   @MainActor
@@ -180,7 +189,7 @@ class AppState {
 
 private struct PreferencesView: View {
   enum Section: String, CaseIterable, Identifiable {
-    case general, storage, appearance, pins, ignore, advanced
+    case general, storage, appearance, pins, ignore, advanced, logs
 
     var id: Self { self }
 
@@ -192,6 +201,7 @@ private struct PreferencesView: View {
       case .pins: "Pins"
       case .ignore: "Ignore"
       case .advanced: "Advanced"
+      case .logs: "Logs"
       }
     }
 
@@ -203,6 +213,7 @@ private struct PreferencesView: View {
       case .pins: "Manage your saved clipboard items"
       case .ignore: "Exclude apps, content types, and patterns"
       case .advanced: "Safety controls and data management"
+      case .logs: "Errors and warnings recorded by the app"
       }
     }
 
@@ -214,6 +225,7 @@ private struct PreferencesView: View {
       case .pins: "pin"
       case .ignore: "eye.slash"
       case .advanced: "slider.horizontal.3"
+      case .logs: "exclamationmark.triangle"
       }
     }
   }
@@ -270,6 +282,8 @@ private struct PreferencesView: View {
       IgnoreSettingsPane()
     case .advanced:
       AdvancedSettingsPane()
+    case .logs:
+      LogsSettingsPane()
     }
   }
 }
