@@ -1,7 +1,6 @@
 import AppKit
 import Defaults
 import Foundation
-import Settings
 import SwiftUI
 
 @Observable
@@ -33,7 +32,7 @@ class AppState {
   }
 
   private let about = About()
-  private var settingsWindowController: SettingsWindowController?
+  private var settingsWindowController: NSWindowController?
 
   init(history: History, footer: Footer) {
     self.history = history
@@ -106,83 +105,126 @@ class AppState {
   }
 
   @MainActor
-  func openPreferences() { // swiftlint:disable:this function_body_length
+  func openPreferences() {
     if settingsWindowController == nil {
-      let generalTitle = NSLocalizedString("Title", tableName: "GeneralSettings", comment: "")
-      let storageTitle = NSLocalizedString("Title", tableName: "StorageSettings", comment: "")
-      let appearanceTitle = NSLocalizedString("Title", tableName: "AppearanceSettings", comment: "")
-      let pinsTitle = NSLocalizedString("Title", tableName: "PinsSettings", comment: "")
-      let ignoreTitle = NSLocalizedString("Title", tableName: "IgnoreSettings", comment: "")
-      let advancedTitle = NSLocalizedString("Title", tableName: "AdvancedSettings", comment: "")
-      let toolbarTitles = [generalTitle, storageTitle, appearanceTitle, pinsTitle, ignoreTitle, advancedTitle]
-      let titleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
-      let titleWidth = toolbarTitles.reduce(CGFloat.zero) {
-        $0 + ($1 as NSString).size(withAttributes: titleAttributes).width
-      }
-      let toolbarItemSpacing: CGFloat = 24
-      let toolbarEdgeSpacing: CGFloat = 40
-      let toolbarWidth = titleWidth + CGFloat(toolbarTitles.count) * toolbarItemSpacing + toolbarEdgeSpacing
-      let minimumWidth = max(500, ceil(toolbarWidth))
-      settingsWindowController = SettingsWindowController(
-        panes: [
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.general,
-            title: generalTitle,
-            toolbarIcon: NSImage.gearshape!
-          ) {
-            GeneralSettingsPane()
-              .frame(minWidth: minimumWidth)
-          },
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.storage,
-            title: storageTitle,
-            toolbarIcon: NSImage.externaldrive!
-          ) {
-            StorageSettingsPane()
-              .frame(minWidth: minimumWidth)
-          },
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.appearance,
-            title: appearanceTitle,
-            toolbarIcon: NSImage.paintpalette!
-          ) {
-            AppearanceSettingsPane()
-              .frame(minWidth: minimumWidth)
-          },
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.pins,
-            title: pinsTitle,
-            toolbarIcon: NSImage.pincircle!
-          ) {
-            PinsSettingsPane()
-              .environment(self)
-              .modelContainer(Storage.shared.container)
-              .frame(minWidth: minimumWidth)
-          },
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.ignore,
-            title: ignoreTitle,
-            toolbarIcon: NSImage.nosign!
-          ) {
-            IgnoreSettingsPane()
-              .frame(minWidth: minimumWidth)
-          },
-          Settings.Pane(
-            identifier: Settings.PaneIdentifier.advanced,
-            title: advancedTitle,
-            toolbarIcon: NSImage.gearshape2!
-          ) {
-            AdvancedSettingsPane()
-              .frame(minWidth: minimumWidth)
-          }
-        ]
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 980, height: 680),
+        styleMask: [.titled, .closable, .miniaturizable],
+        backing: .buffered,
+        defer: false
       )
+      window.title = NSLocalizedString("Preferences", comment: "")
+      window.titlebarAppearsTransparent = true
+      window.isReleasedWhenClosed = false
+      window.center()
+      window.contentView = NSHostingView(
+        rootView: PreferencesView()
+          .environment(self)
+          .modelContainer(Storage.shared.container)
+      )
+      settingsWindowController = NSWindowController(window: window)
     }
-    settingsWindowController?.show()
+    settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.orderFrontRegardless()
   }
 
   func quit() {
     NSApp.terminate(self)
+  }
+}
+
+private struct PreferencesView: View {
+  enum Section: String, CaseIterable, Identifiable {
+    case general, storage, appearance, pins, ignore, advanced
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+      switch self {
+      case .general: "General"
+      case .storage: "Storage"
+      case .appearance: "Appearance"
+      case .pins: "Pins"
+      case .ignore: "Ignore"
+      case .advanced: "Advanced"
+      }
+    }
+
+    var subtitle: LocalizedStringKey {
+      switch self {
+      case .general: "Startup, shortcuts, and paste behavior"
+      case .storage: "What Yippy keeps and how it is organized"
+      case .appearance: "How the clipboard window looks and behaves"
+      case .pins: "Manage your saved clipboard items"
+      case .ignore: "Exclude apps, content types, and patterns"
+      case .advanced: "Safety controls and data management"
+      }
+    }
+
+    var symbol: String {
+      switch self {
+      case .general: "gearshape"
+      case .storage: "externaldrive"
+      case .appearance: "paintpalette"
+      case .pins: "pin"
+      case .ignore: "eye.slash"
+      case .advanced: "slider.horizontal.3"
+      }
+    }
+  }
+
+  @State private var selection: Section? = .general
+
+  var body: some View {
+    NavigationSplitView {
+      List(Section.allCases, selection: $selection) { section in
+        Label(section.title, systemImage: section.symbol)
+          .tag(section)
+      }
+      .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 230)
+    } detail: {
+      if let selection {
+        VStack(alignment: .leading, spacing: 0) {
+          VStack(alignment: .leading, spacing: 5) {
+            Text(selection.title)
+              .font(.system(size: 24, weight: .bold))
+            Text(selection.subtitle)
+              .foregroundStyle(.secondary)
+          }
+          .padding(.horizontal, 32)
+          .padding(.top, 28)
+          .padding(.bottom, 20)
+
+          Divider()
+
+          ScrollView {
+            page(for: selection)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(32)
+          }
+        }
+        .background(.background)
+      }
+    }
+    .frame(width: 980, height: 680)
+  }
+
+  @ViewBuilder
+  private func page(for section: Section) -> some View {
+    switch section {
+    case .general:
+      GeneralSettingsPane()
+    case .storage:
+      StorageSettingsPane()
+    case .appearance:
+      AppearanceSettingsPane()
+    case .pins:
+      PinsSettingsPane()
+    case .ignore:
+      IgnoreSettingsPane()
+    case .advanced:
+      AdvancedSettingsPane()
+    }
   }
 }
