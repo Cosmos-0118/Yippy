@@ -1,11 +1,14 @@
 import Defaults
 import KeyboardShortcuts
+import Logging
 import Sparkle
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
   static let isTesting = CommandLine.arguments.contains("enable-testing")
   var panel: FloatingPanel<ContentView>!
+
+  private let logger = Logger(label: "dev.cosmos0118.Yippy")
 
   @objc
   private lazy var statusItem: NSStatusItem = {
@@ -121,6 +124,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ) {
       ContentView()
     }
+
+    // Unlike title sanitization, nothing renders orphaned contents, so this
+    // has no reason to block the panel's appearance — it runs after launch.
+    Task {
+      await migrateOrphanedContentsIfNeeded()
+    }
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -134,11 +143,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  private func ensureMigration(key: String, _ action: () -> Void) {
-    if Defaults[.migrations][key] != true {
-      action()
-      Defaults[.migrations][key] = true
+  // The key is only recorded once `action` returns without throwing, so a
+  // failed migration (e.g. SQLITE_FULL during cleanup) retries on next
+  // launch instead of being silently treated as done forever.
+  private func ensureMigration(key: String, _ action: () throws -> Void) rethrows {
+    guard Defaults[.migrations][key] != true else {
+      return
     }
+
+    try action()
+    Defaults[.migrations][key] = true
+  }
+
+  private func ensureMigrationAsync(key: String, _ action: () async throws -> Void) async rethrows {
+    guard Defaults[.migrations][key] != true else {
+      return
+    }
+
+    try await action()
+    Defaults[.migrations][key] = true
   }
 
   @MainActor
@@ -164,12 +187,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       Defaults[.enabledPasteboardTypes] = types
     }
 
-    ensureMigration(key: "2026-08-12-cleanup-orphaned-history-item-contents") {
-      _ = try? Storage.shared.cleanupOrphanedContents()
-    }
-
-    ensureMigration(key: "2026-08-31-sanitize-history-item-titles") {
-      _ = try? Storage.shared.sanitizeTitles()
+    // Re-dated (was "2026-08-31-..."): that key could already be marked done
+    // for installs where the old unconditional-write bug silently swallowed a
+    // failure. The new date gives every install one retry under the now-
+    // correct throw-and-log handling.
+    do {
+      try ensureMigration(key: "2026-09-12-sanitize-history-item-titles") {
+        _ = try Storage.shared.sanitizeTitles()
+      }
+    } catch {
+      logger.error("Failed to sanitize history item titles: \(String(reflecting: error))")
     }
 
     // The following defaults are not used in Maccy 2.x
@@ -179,6 +206,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // - saratovSeparator
     // - maxMenuItemLength
     // - maxMenuItems
+  }
+
+  private func migrateOrphanedContentsIfNeeded() async {
+    // Re-dated for the same reason as the title-sanitization key above: gives
+    // installs where the old unconditional-write bug already marked this
+    // "done" one retry under the now-correct throw-and-log handling.
+    do {
+      try await ensureMigrationAsync(key: "2026-09-12-cleanup-orphaned-history-item-contents") {
+        let deletedCount = try await Storage.shared.cleanupOrphanedContents()
+        guard deletedCount > 0 else {
+          return
+        }
+
+        // Cleanup itself writes persistent-history rows for every delete; force
+        // an unthrottled prune so they don't sit in the log until the next
+        // throttle window instead of riding along with today's regular prune.
+        Defaults[.lastHistoryLogPruneAt] = .distantPast
+        if #available(macOS 15, *) {
+          await Storage.shared.pruneHistoryLogIfNeeded()
+        }
+      }
+    } catch {
+      logger.error("Failed to clean up orphaned history item contents: \(String(reflecting: error))")
+    }
   }
 
   @objc

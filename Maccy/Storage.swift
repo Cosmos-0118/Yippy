@@ -50,23 +50,81 @@ class Storage {
   }
   #endif
 
-  func cleanupOrphanedContents() throws -> Int {
-    let descriptor = FetchDescriptor<HistoryItemContent>(
-      predicate: #Predicate { $0.item == nil }
-    )
-    let count = try context.fetchCount(descriptor)
-    guard count > 0 else {
-      return 0
+  private static let cleanupBatchSize = 500
+
+  // A single predicate delete over the whole orphan set stages one huge
+  // transaction and blocks the main actor for as long as it takes to commit,
+  // which is what makes a large store hang at launch. Deleting in bounded
+  // batches, each with its own save, keeps every commit small (bounding WAL
+  // growth) and makes the operation resumable: a batch that never gets its
+  // save is simply retried, since deleted rows leave the predicate and
+  // undeleted ones stay in it — no offset bookkeeping is needed or safe here.
+  //
+  // Runs on its own `ModelContext` rather than `mainContext`: a fetch merges
+  // its own context's *pending*, unsaved changes, so on `mainContext` a
+  // content object momentarily inserted with no `item` yet attached (e.g. a
+  // clipboard add still in progress) would match `item == nil` and be
+  // deleted — and a failed save's rollback would discard that unrelated
+  // pending insert along with it. A private context sees only what is
+  // already committed to the store, so live clipboard activity on
+  // `mainContext` can never be touched by this loop.
+  func cleanupOrphanedContents() async throws -> Int {
+    logLowCapacityWarningIfNeeded()
+
+    let cleanupContext = ModelContext(container)
+    var totalDeleted = 0
+
+    while true {
+      var descriptor = FetchDescriptor<HistoryItemContent>(
+        predicate: #Predicate { $0.item == nil }
+      )
+      descriptor.fetchLimit = Self.cleanupBatchSize
+
+      let batch = try cleanupContext.fetch(descriptor)
+      guard !batch.isEmpty else {
+        break
+      }
+
+      for content in batch {
+        cleanupContext.delete(content)
+      }
+      cleanupContext.processPendingChanges()
+
+      do {
+        try cleanupContext.save()
+      } catch {
+        cleanupContext.rollback()
+        throw error
+      }
+
+      totalDeleted += batch.count
+
+      // Yields the main actor between batches so a large cleanup doesn't
+      // starve UI/event handling even though it now runs after launch.
+      await Task.yield()
     }
 
-    try context.delete(
-      model: HistoryItemContent.self,
-      where: #Predicate { $0.item == nil }
-    )
-    context.processPendingChanges()
-    try context.save()
+    return totalDeleted
+  }
 
-    return count
+  // Best-effort warning only: available capacity and how much space a
+  // SQLite checkpoint/WAL cycle actually needs are not in a strict 1:1
+  // relationship, so this must never gate the cleanup itself — batching is
+  // what keeps a low-space cleanup safe and resumable, not this check.
+  private func logLowCapacityWarningIfNeeded() {
+    guard
+      let capacity = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        .volumeAvailableCapacityForImportantUsage,
+      let storeSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+    else {
+      return
+    }
+
+    if capacity < Int64(storeSize) {
+      logger.warning(
+        "Low disk space (\(capacity) bytes available) before orphaned-content cleanup of a \(storeSize)-byte store."
+      )
+    }
   }
 
   // Titles stored before the sanitization in `HistoryItem.generateTitle()` may
@@ -74,6 +132,13 @@ class Storage {
   // spin at 100% CPU on every launch without ever drawing its window, so the
   // store has to be healed before the history is first rendered.
   // See https://github.com/p0deje/Maccy/issues/1520.
+  //
+  // `historySize` caps unpinned items at 999 and pins are capped at ~20 keys
+  // (see `HistoryItem.supportedPins`), so the live item count this scans is
+  // always small — a single fetch is appropriate. (A `fetchLimit`/`fetchOffset`
+  // page loop was tried here and reverted: SQLite still produces and discards
+  // every earlier page's rows for each `OFFSET`, making the scan O(n²) instead
+  // of O(n) for no bound this call actually needs.)
   func sanitizeTitles() throws -> Int {
     let items = try context.fetch(FetchDescriptor<HistoryItem>())
     var count = 0
@@ -88,7 +153,12 @@ class Storage {
     }
 
     context.processPendingChanges()
-    try context.save()
+    do {
+      try context.save()
+    } catch {
+      context.rollback()
+      throw error
+    }
 
     return count
   }

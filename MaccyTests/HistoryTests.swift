@@ -314,7 +314,7 @@ class HistoryTests: XCTestCase { // swiftlint:disable:this type_body_length
     try assertStorageCounts(items: 1, contents: 1)
   }
 
-  func testCleaningUpOrphanedContents() throws {
+  func testCleaningUpOrphanedContents() async throws {
     let live = history.add(historyItem("live"))
     let liveContent = live.item.contents[0]
     for value in ["orphan-1", "orphan-2"] {
@@ -325,8 +325,10 @@ class HistoryTests: XCTestCase { // swiftlint:disable:this type_body_length
     }
     try Storage.shared.context.save()
 
-    XCTAssertEqual(try Storage.shared.cleanupOrphanedContents(), 2)
-    XCTAssertEqual(try Storage.shared.cleanupOrphanedContents(), 0)
+    let deletedCount = try await Storage.shared.cleanupOrphanedContents()
+    XCTAssertEqual(deletedCount, 2)
+    let secondRunDeletedCount = try await Storage.shared.cleanupOrphanedContents()
+    XCTAssertEqual(secondRunDeletedCount, 0)
     XCTAssertEqual(live.item.contents, [liveContent])
     try assertStorageCounts(items: 1, contents: 1)
   }
