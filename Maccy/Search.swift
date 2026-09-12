@@ -136,6 +136,8 @@ private enum FuzzyMatcher {
   private static let noMatch = -Double.greatestFiniteMagnitude
   private static let gapPenalty = 0.35
   private static let maximumFuzzyQueryLength = 64
+  private static let maximumFuzzySpanMultiplier = 7
+  private static let minimumFuzzySpan = 32
 
   static func match(query: String, in text: String) -> Match? {
     // A contiguous hit is both the clearest result and a fast path for long
@@ -238,6 +240,14 @@ private enum FuzzyMatcher {
     for queryIndex in stride(from: queryCharacters.count - 1, through: 0, by: -1) {
       matchIndexes.append(currentIndex)
       currentIndex = previous[queryIndex][currentIndex]
+    }
+
+    // A scattered subsequence is technically a match but a poor search
+    // result: it produces unexplained single-letter highlights. Exact
+    // matches above remain unrestricted; this only filters fuzzy noise.
+    guard let firstMatch = matchIndexes.last, let lastMatch = matchIndexes.first,
+          lastMatch - firstMatch + 1 <= max(minimumFuzzySpan, queryCharacters.count * maximumFuzzySpanMultiplier) else {
+      return nil
     }
 
     return Match(score: scores[queryCharacters.count - 1][endIndex], ranges: ranges(for: matchIndexes.reversed(), in: text))

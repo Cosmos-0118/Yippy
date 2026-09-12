@@ -114,6 +114,12 @@ class SearchTests: XCTestCase {
     XCTAssertEqual(search("os").map(\.object), [items[0], items[1]])
     XCTAssertEqual(search("cafe").map(\.object), [items[2]])
     XCTAssertEqual(search("cafe")[0].ranges, [range(from: 0, to: 3, in: items[2])])
+
+    let scattered = HistoryItemDecorator(historyItemWithTitle(
+      "c" + String(repeating: "x", count: 60) + "hanges"
+    ))
+    items.append(scattered)
+    XCTAssertFalse(search("changes").contains { $0.object == scattered })
   }
 
   @MainActor

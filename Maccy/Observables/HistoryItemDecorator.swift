@@ -214,8 +214,12 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
   /// one-line visual representation is shortened.
   private func matchFocusedDisplay(for ranges: [Range<String.Index>]) -> (text: String, ranges: [Range<String.Index>]) {
     let validRanges = ranges.filter { $0.lowerBound >= title.startIndex && $0.upperBound <= title.endIndex }
-    guard title.count > Self.matchFocusedDisplayLimit,
-          let focalRange = densestMatchRange(in: validRanges) else {
+    guard let focalRange = densestMatchRange(in: validRanges) else {
+      return (title.shortened(to: Self.maximumRenderedTitleLength), validRanges)
+    }
+
+    let matchOffset = title.distance(from: title.startIndex, to: focalRange.upperBound)
+    guard title.count > Self.matchFocusedDisplayLimit || matchOffset > Self.safeVisibleMatchOffset else {
       return (title.shortened(to: Self.maximumRenderedTitleLength), validRanges)
     }
 
@@ -275,8 +279,11 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
   }
 
   private static let maximumRenderedTitleLength = 500
-  private static let matchFocusedDisplayLimit = 280
-  private static let leadingMatchContext = 48
+  // The popup is commonly only wide enough for roughly one short sentence.
+  // Keep the match early in that sentence so tail truncation cannot hide it.
+  private static let matchFocusedDisplayLimit = 80
+  private static let leadingMatchContext = 18
+  private static let safeVisibleMatchOffset = 52
   private static let matchClusterGap = 24
 
   @MainActor
