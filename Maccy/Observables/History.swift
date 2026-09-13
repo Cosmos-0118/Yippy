@@ -22,15 +22,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   var searchQuery: String = "" {
     didSet {
       throttler.throttle { [self] in
-        updateItems(search.search(string: searchQuery, within: all))
-
-        if searchQuery.isEmpty {
-          AppState.shared.navigator.select(item: unpinnedItems.first)
-        } else {
-          AppState.shared.navigator.highlightFirst()
-        }
-
-        AppState.shared.popup.needsResize = true
+        performSearch()
       }
     }
   }
@@ -58,6 +50,13 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @ObservationIgnored
   private var sessionLog: [Int: HistoryItem] = [:]
+
+  // Bumped on every search request; a background search result is only
+  // applied if this still matches the generation it was started with. This
+  // is what lets rapid typing cancel stale, in-flight background matches
+  // instead of racing them onto `items`.
+  @ObservationIgnored
+  private var searchGeneration = 0
 
   // The distinction between `all` and `items` is the following:
   // - `all` stores all history items, even the ones that are currently hidden by a search
@@ -315,10 +314,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     }
 
     if modifierFlags.isEmpty {
-      AppState.shared.popup.close()
       Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
       if Defaults[.pasteByDefault] {
-        Clipboard.shared.paste()
+        AppState.shared.popup.close(afterFocusRestored: Clipboard.shared.paste)
+      } else {
+        AppState.shared.popup.close()
       }
     } else {
       switch HistoryItemAction(modifierFlags) {
@@ -326,13 +326,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
         AppState.shared.popup.close()
         Clipboard.shared.copy(item.item)
       case .paste:
-        AppState.shared.popup.close()
         Clipboard.shared.copy(item.item)
-        Clipboard.shared.paste()
+        AppState.shared.popup.close(afterFocusRestored: Clipboard.shared.paste)
       case .pasteWithoutFormatting:
-        AppState.shared.popup.close()
         Clipboard.shared.copy(item.item, removeFormatting: true)
-        Clipboard.shared.paste()
+        AppState.shared.popup.close(afterFocusRestored: Clipboard.shared.paste)
       case .unknown:
         return
       }
@@ -364,9 +362,8 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
         AppState.shared.popup.close()
         Clipboard.shared.copy(item.item)
       case .pasteWithoutFormatting:
-        AppState.shared.popup.close()
         Clipboard.shared.copy(item.item, removeFormatting: true)
-        Clipboard.shared.paste()
+        AppState.shared.popup.close(afterFocusRestored: Clipboard.shared.paste)
       case .unknown:
         return
       }
@@ -458,15 +455,58 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     return nil
   }
 
-  private func updateItems(_ newItems: [Search.SearchResult]) {
-    items = newItems.map { result in
-      let item = result.object
-      item.highlight(searchQuery, result.ranges)
+  /// Matching runs on a background task over immutable `SearchDocument`
+  /// snapshots (a cheap, main-actor string copy) instead of directly over
+  /// `all` on the main thread, since the matcher's cost scales with history
+  /// size and would otherwise freeze the UI while typing.
+  private func performSearch() {
+    searchGeneration += 1
+    let generation = searchGeneration
+    let query = searchQuery
+    let mode = Defaults[.searchMode]
+    let documents = Search.documents(from: all)
+    let searcher = search
 
+    Task.detached(priority: .userInitiated) { [weak self] in
+      let matches = searcher.match(query: query, mode: mode, in: documents)
+      await MainActor.run {
+        self?.applySearch(matches, generation: generation, query: query)
+      }
+    }
+  }
+
+  private func applySearch(_ matches: [Search.SearchMatch], generation: Int, query: String) {
+    // A newer search was started while this one was running in the
+    // background; its result is stale, discard it.
+    guard generation == searchGeneration else {
+      return
+    }
+
+    let currentById = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+    items = matches.compactMap { match in
+      // The item may have been deleted (or history cleared) while this
+      // search was in flight.
+      guard let item = currentById[match.id] else {
+        return nil
+      }
+      // The item's title may have changed (e.g. async OCR/title generation)
+      // since the snapshot was taken; ranges computed against the old title
+      // no longer describe the current string, so drop them rather than
+      // index into a string they weren't computed against.
+      let ranges = item.title == match.title ? match.ranges : []
+      item.highlight(query, ranges)
       return item
     }
 
     updateUnpinnedShortcuts()
+
+    if query.isEmpty {
+      AppState.shared.navigator.select(item: unpinnedItems.first)
+    } else {
+      AppState.shared.navigator.highlightFirst()
+    }
+
+    AppState.shared.popup.needsResize = true
   }
 
   private func updateShortcuts() {

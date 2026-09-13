@@ -4,12 +4,13 @@ import Logging
 import Sparkle
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
   static let isTesting = CommandLine.arguments.contains("enable-testing")
   static weak var shared: AppDelegate?
   var panel: FloatingPanel<ContentView>!
 
   private let logger = Logger(label: "dev.cosmos0118.Yippy")
+  private var menuBarSourceApp: NSRunningApplication?
 
   private lazy var menuBarPopover: NSPopover = {
     let popover = NSPopover()
@@ -17,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     popover.animates = true
     popover.contentSize = NSSize(width: 280, height: 252)
     popover.contentViewController = NSHostingController(rootView: MenuBarDropdownView())
+    popover.delegate = self
     return popover
   }()
 
@@ -211,6 +213,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       logger.error("Failed to sanitize history item titles: \(String(reflecting: error))")
     }
 
+    ensureMigration(key: "2026-09-13-lower-default-window-height") {
+      // The auto-fit-to-content height cap (Popup.preferredHeight clamps to
+      // Defaults[.windowSize].height) used to default to a tall 800pt, so a
+      // sizeable history read as "the window just keeps growing" long before
+      // it ever scrolled. Only touch installs that never customized this --
+      // still exactly the old literal default -- a real manual resize is
+      // left alone.
+      Defaults[.windowSize] = WindowSizing.migratedDefault(from: Defaults[.windowSize])
+    }
+
     // The following defaults are not used in Maccy 2.x
     // and should be removed in 3.x.
     // - LaunchAtLogin__hasMigrated
@@ -266,7 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if menuBarPopover.isShown {
       dismissMenuBarDropdown()
     } else if panel.isPresented {
-      panel.close()
+      panel.dismiss()
     } else {
       showMenuBarDropdown()
     }
@@ -279,6 +291,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       dismissMenuBarDropdown()
       return
     }
+
+    let frontmostApp = NSWorkspace.shared.frontmostApplication
+    menuBarSourceApp = frontmostApp?.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : frontmostApp
 
     // Clicking a status item never activates an agent (LSUIElement) app, so the
     // popover would come up in an inactive application: its window cannot become
@@ -300,22 +315,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  func dismissMenuBarDropdown() {
+  func dismissMenuBarDropdown(restoringFocus: Bool = true) {
     // `performClose` mimics a user-driven close (animated, delegate-consulted)
     // and can still hold key/activation status across the runloop tick that
     // follows, racing whatever window we open right after. `close()` tears
     // the popover down immediately, so the next window's `makeKey`/`activate`
     // isn't fighting a popover still relinquishing focus.
+    let appToRestore = restoringFocus ? menuBarSourceApp : nil
+    menuBarSourceApp = nil
     menuBarPopover.close()
+
+    if let appToRestore,
+       !appToRestore.isTerminated,
+       NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier {
+      restoreMenuBarFocus(to: appToRestore)
+    }
+  }
+
+  func popoverDidClose(_ notification: Notification) {
+    let appToRestore = menuBarSourceApp
+    menuBarSourceApp = nil
+    if let appToRestore,
+       !appToRestore.isTerminated,
+       NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier {
+      restoreMenuBarFocus(to: appToRestore)
+    }
+  }
+
+  private func restoreMenuBarFocus(to app: NSRunningApplication) {
+    if !app.activate() {
+      DispatchQueue.main.async { [weak app] in
+        guard let app, !app.isTerminated,
+              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier else {
+          return
+        }
+        app.activate()
+      }
+    }
   }
 
   func openClipboardFromMenuBar() {
     // Finish the transient popover interaction before making the panel key.
-    dismissMenuBarDropdown()
+    let sourceApp = menuBarSourceApp
+    dismissMenuBarDropdown(restoringFocus: false)
     DispatchQueue.main.async {
       self.panel.open(
         height: AppState.shared.popup.height,
-        at: .statusItem
+        at: .statusItem,
+        restoringFocusTo: sourceApp
       )
 
       // The menu popover may already have made the application active, so the
@@ -416,7 +463,7 @@ private struct MenuBarDropdownView: View {
 
       HStack {
         Button("Preferences…") {
-          AppDelegate.shared?.dismissMenuBarDropdown()
+          AppDelegate.shared?.dismissMenuBarDropdown(restoringFocus: false)
           // Same reasoning as `openClipboardFromMenuBar`: activating/keying
           // another window in the same runloop tick as the dismissal races
           // the popover's own teardown and can leave Preferences frontmost

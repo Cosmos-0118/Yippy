@@ -1,10 +1,7 @@
 import AppKit.NSRunningApplication
 import Defaults
 import KeyboardShortcuts
-import Logging
 import Observation
-
-private let popupLogger = Logger(label: "dev.cosmos0118.Yippy.popup")
 
 enum PopupState {
   // Default; shortcut will toggle the popup
@@ -89,8 +86,8 @@ class Popup {
     KeyboardShortcuts.enable(.popup)
   }
 
-  func close() {
-    AppState.shared.appDelegate?.panel.close()  // close() calls reset
+  func close(afterFocusRestored completion: (() -> Void)? = nil) {
+    AppState.shared.appDelegate?.panel.dismiss(afterFocusRestored: completion)  // close() calls reset
   }
 
   func isClosed() -> Bool {
@@ -98,7 +95,7 @@ class Popup {
   }
 
   func preferredHeight(for newHeight: CGFloat) -> CGFloat {
-    var height = newHeight
+    let height = newHeight
 
     var minHeight = self.minimumHeight
     // If the preview is non-empty make sure the window accomodates for it to be visible.
@@ -107,9 +104,11 @@ class Popup {
     }
     minHeight = max(headerHeight + Self.verticalPadding, minHeight)
 
-    height = max(height, minHeight)
-    height = min(height, Defaults[.windowSize].height)
-    return height
+    return WindowSizing.preferredHeight(
+      requested: height,
+      minimum: minHeight,
+      maximum: Defaults[.windowSize].height
+    )
   }
 
   private func suitableHeight(for historyListHeight: CGFloat) -> CGFloat {
@@ -123,7 +122,6 @@ class Popup {
   }
 
   private func handleFirstKeyDown() {
-    popupLogger.warning("[diag] handleFirstKeyDown isClosed=\(isClosed()) isActive=\(NSApp.isActive)")
     if isClosed() {
       open(height: height)
       state = .opening
@@ -143,10 +141,6 @@ class Popup {
     // specific key combo rather than every key.
     guard !KeyboardShortcuts.isPaused else { return event }
 
-    popupLogger.warning(
-      "[diag] handleEvent type=\(event.type.rawValue) state=\(state) isActive=\(NSApp.isActive) isKeyWindow=\(AppState.shared.appDelegate?.panel.isKeyWindow ?? false)"
-    )
-
     switch event.type {
     case .keyDown:
       return handleKeyDown(event)
@@ -158,9 +152,6 @@ class Popup {
   }
 
   private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
-    popupLogger.warning(
-      "[diag] handleKeyDown keyCode=\(event.keyCode) isHotKeyCode=\(isHotKeyCode(Int(event.keyCode))) state=\(state)"
-    )
     if isHotKeyCode(Int(event.keyCode)) {
       if let item = History.shared.pressedShortcutItem {
         AppState.shared.navigator.select(item: item)
@@ -177,7 +168,13 @@ class Popup {
       }
 
       if state == .cycle {
-        AppState.shared.navigator.highlightNext(allowCycle: true)
+        // History-only: this cycle is confirmed by releasing modifiers (see
+        // handleFlagsChanged below), which immediately acts on whatever is
+        // highlighted. `NavigationManager.highlightNext(allowCycle:)` walks
+        // into footer items (Clear, Preferences, About, Quit) once history is
+        // exhausted, so cycling one tap too far and releasing would run that
+        // footer action instead of pasting a history item.
+        AppState.shared.navigator.highlightNextHistoryItem()
         return nil
       }
 
@@ -191,21 +188,10 @@ class Popup {
   }
 
   private func handleFlagsChanged(_ event: NSEvent) -> NSEvent? {
-    popupLogger.warning(
-      "[diag] handleFlagsChanged flags=\(event.modifierFlags.rawValue) allReleased=\(allModifiersReleased(event)) state=\(state)"
-    )
     // If we are in cycle mode, releasing modifiers triggers a selection
     if state == .cycle && allModifiersReleased(event) {
       let modifierFlags = NSEvent.ModifierFlags.currentModifierFlags
-      // Selecting here can end in Clipboard.paste(), which synthesizes ⌘V via
-      // a `.combinedSessionState` event source. That source merges the real,
-      // currently-held hardware modifiers into posted events, and this fires
-      // on the very flagsChanged event that reports the open shortcut's own
-      // modifiers (e.g. ⇧⌘) as released — before that release has actually
-      // propagated. Without a settle delay the target app can still receive
-      // the old modifiers merged into the synthetic V, e.g. ⇧⌘V instead of
-      // ⌘V, so it doesn't paste. Mirrors the same fix in AutoCopyOnSelect.
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+      DispatchQueue.main.async {
         AppState.shared.select(flags: modifierFlags)
       }
       return nil

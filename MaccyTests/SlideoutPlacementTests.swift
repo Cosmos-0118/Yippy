@@ -35,4 +35,52 @@ final class SlideoutPlacementTests: XCTestCase {
 
     XCTAssertEqual(placement, .left)
   }
+
+  func testLegacyDefaultWindowSizeMigratesToNewDefault() {
+    XCTAssertEqual(
+      WindowSizing.migratedDefault(from: WindowSizing.legacyDefaultSize),
+      WindowSizing.defaultSize
+    )
+  }
+
+  func testCustomizedWindowSizeIsNotMigrated() {
+    let customizedSize = NSSize(width: 450, height: 799)
+    XCTAssertEqual(WindowSizing.migratedDefault(from: customizedSize), customizedSize)
+  }
+
+  func testPreferredHeightHonorsMinimumWhenSavedMaximumIsStale() {
+    XCTAssertEqual(
+      WindowSizing.preferredHeight(requested: 100, minimum: 180, maximum: 120),
+      180
+    )
+  }
+
+  func testPreferredHeightClampsToMaximum() {
+    XCTAssertEqual(
+      WindowSizing.preferredHeight(requested: 900, minimum: 180, maximum: 480),
+      480
+    )
+  }
+
+  func testWidthOnlyResizePreservesHeightCeiling() {
+    let resized = WindowSizing.resizedPreference(
+      previous: NSSize(width: 450, height: 480),
+      liveResizeStart: NSSize(width: 450, height: 180),
+      final: NSSize(width: 520, height: 180),
+      contentWidth: 520
+    )
+
+    XCTAssertEqual(resized, NSSize(width: 520, height: 480))
+  }
+
+  func testVerticalResizeUpdatesHeightCeiling() {
+    let resized = WindowSizing.resizedPreference(
+      previous: NSSize(width: 450, height: 480),
+      liveResizeStart: NSSize(width: 450, height: 180),
+      final: NSSize(width: 450, height: 320),
+      contentWidth: 450
+    )
+
+    XCTAssertEqual(resized, NSSize(width: 450, height: 320))
+  }
 }

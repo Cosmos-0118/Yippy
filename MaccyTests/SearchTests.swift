@@ -198,6 +198,117 @@ class SearchTests: XCTestCase {
     XCTAssertEqual(search("m"), [])
   }
 
+  @MainActor
+  func testFuzzyModeRanksWordBoundaryAboveInteriorSubstring() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    items = [
+      // "settings" occurs interior/mid-word here...
+      HistoryItemDecorator(historyItemWithTitle("assetsettingsmanager")),
+      // ...but at a word boundary here, so it must rank first despite
+      // appearing later in the (irrelevant) creation order.
+      HistoryItemDecorator(historyItemWithTitle("open settings"))
+    ]
+
+    XCTAssertEqual(search("settings").map(\.object), [items[1], items[0]])
+  }
+
+  @MainActor
+  func testMixedModeBlendsRatherThanFallsBackToWeakestStage() {
+    Defaults[.searchMode] = Search.Mode.mixed
+    items = [
+      // A literal substring exists here, but only interior/mid-word.
+      HistoryItemDecorator(historyItemWithTitle("assetsettingsmanager")),
+      // A word-boundary literal substring, which should outrank the above
+      // even though both are found by the same (non-regex) literal pass.
+      HistoryItemDecorator(historyItemWithTitle("open settings"))
+    ]
+
+    // Previously, mixed mode returned the first non-empty stage's results
+    // verbatim (unranked among themselves beyond original order), so a
+    // weak interior match could sit ahead of a strong boundary match.
+    XCTAssertEqual(search("settings").map(\.object), [items[1], items[0]])
+  }
+
+  @MainActor
+  func testMixedModeDoesNotImplicitlyRunRegex() {
+    Defaults[.searchMode] = Search.Mode.mixed
+    items = [
+      HistoryItemDecorator(historyItemWithTitle("foo bar baz"))
+    ]
+
+    // "ba." is a valid regex (matches "bar"/"baz" via the wildcard) but
+    // contains no literal "." character and no fuzzy-matchable subsequence
+    // against this title, since the title has no "." anywhere. Previously,
+    // mixed mode tried regex as an implicit stage between exact and fuzzy,
+    // which would have surfaced this item.
+    XCTAssertEqual(search("ba.").map(\.object), [])
+  }
+
+  @MainActor
+  func testFuzzyModeTreatsSpaceSeparatedTermsAsAnd() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    items = [
+      HistoryItemDecorator(historyItemWithTitle("open system settings")),
+      HistoryItemDecorator(historyItemWithTitle("open settings only")),
+      HistoryItemDecorator(historyItemWithTitle("system only"))
+    ]
+
+    // Both terms must match somewhere in the title for the item to surface.
+    XCTAssertEqual(search("open settings").map(\.object), [items[1], items[0]])
+  }
+
+  @MainActor
+  func testFuzzyModeQuotedPhraseIsMatchedLiterally() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    items = [
+      HistoryItemDecorator(historyItemWithTitle("settings, open")),
+      HistoryItemDecorator(historyItemWithTitle("open settings"))
+    ]
+
+    XCTAssertEqual(search("\"open settings\"").map(\.object), [items[1]])
+  }
+
+  @MainActor
+  func testFuzzySearchHandlesLongNonContiguousQueryWithoutHardCutoff() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    // Previously, any subsequence query longer than 64 characters was
+    // rejected outright, even when the text plainly supported it.
+    let queryCharacters = (0..<70).map { Character(UnicodeScalar(97 + $0 % 26)!) }
+    let query = String(queryCharacters)
+    let text = queryCharacters.map(String.init).joined(separator: "-")
+    items = [HistoryItemDecorator(historyItemWithTitle(text))]
+
+    XCTAssertEqual(search(query).map(\.object), [items[0]])
+  }
+
+  @MainActor
+  func testFuzzySearchPerformanceStaysBounded() {
+    Defaults[.searchMode] = Search.Mode.fuzzy
+    // A long, non-contiguous query scattered across a long title forces
+    // every item through the DP scorer (not a substring fast path) with a
+    // wide match window, mirroring the audit's worst-case shape -- long
+    // titles, genuinely fuzzy queries -- where the old implementation
+    // allocated a fresh pair of query-length x title-length matrices per
+    // candidate on every keystroke.
+    let queryCharacters = (0..<70).map { Character(UnicodeScalar(97 + $0 % 26)!) }
+    let query = String(queryCharacters)
+    let fillerBetweenLetters = String(repeating: "x", count: 3)
+    let scattered = queryCharacters.map(String.init).joined(separator: fillerBetweenLetters)
+    items = (0..<300).map { index in
+      HistoryItemDecorator(historyItemWithTitle("item \(index) \(scattered)"))
+    }
+
+    let start = Date()
+    let results = search(query)
+    let elapsed = Date().timeIntervalSince(start)
+
+    XCTAssertEqual(results.count, items.count)
+    // A very generous bound: this is a debug-build regression guard against
+    // a return to per-item unbounded matrix allocation, not an assertion of
+    // the audit's release-mode latency targets (measure those in Release).
+    XCTAssertLessThan(elapsed, 8.0)
+  }
+
   private func search(_ string: String) -> [Search.SearchResult] {
     return Search().search(string: string, within: items)
   }

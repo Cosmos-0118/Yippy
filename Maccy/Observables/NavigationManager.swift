@@ -267,6 +267,25 @@ class NavigationManager { // swiftlint:disable:this type_body_length
     }
   }
 
+  /// Like `highlightNext(allowCycle: true)`, but never lands on a footer item
+  /// (Clear, Preferences, About, Quit). This backs the popup shortcut's
+  /// hold-and-repeat cycling, where releasing the modifier key immediately
+  /// acts on whatever is highlighted -- landing on a footer item there would
+  /// run that action (e.g. clearing history or quitting) instead of pasting.
+  func highlightNextHistoryItem() {
+    guard let lead = leadSelection,
+          let historyItem = history.firstVisibleItem(where: { $0.id == lead }) else {
+      highlightFirst()
+      return
+    }
+
+    if let nextItem = history.visibleItem(after: historyItem) {
+      selectFromKeyboardNavigation(item: nextItem)
+    } else {
+      highlightFirst()
+    }
+  }
+
   func highlightLast() {
     guard let lead = leadSelection else { return }
 
