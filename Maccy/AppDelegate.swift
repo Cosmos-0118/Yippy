@@ -66,6 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     Clipboard.shared.onNewCopy { History.shared.add($0) }
     Clipboard.shared.start()
+    AutoCopyOnSelect.start()
 
     Task {
       for await _ in Defaults.updates(.clipboardCheckInterval, initial: false) {
@@ -276,8 +277,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     if menuBarPopover.isShown {
       dismissMenuBarDropdown()
-    } else {
-      menuBarPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+      return
+    }
+
+    // Clicking a status item never activates an agent (LSUIElement) app, so the
+    // popover would come up in an inactive application: its window cannot become
+    // key, controls render in their inactive gray state, and anything opened from
+    // it inherits the same non-active application. Activate synchronously, while
+    // still inside the click handler, because macOS 14+ cooperative activation
+    // only honours the request while the user interaction that triggered it is
+    // current — a deferred activate can be silently denied.
+    NSApp.activate(ignoringOtherApps: true)
+    menuBarPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+    // Activation completes asynchronously, so the popover's window cannot become
+    // key during this turn of the runloop. Claim key status once the application
+    // is actually active, otherwise the popover stays in its inactive appearance
+    // and keyboard input keeps going to the previously frontmost application.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.menuBarPopover.isShown else { return }
+      self.menuBarPopover.contentViewController?.view.window?.makeKey()
     }
   }
 
@@ -376,9 +395,9 @@ private struct MenuBarDropdownView: View {
           .background(Color.accentColor, in: Capsule())
           .contentShape(Capsule())
       }
-      // NSPopover is not always key, which causes AppKit's bordered button
-      // styles to render as an inactive gray control. A custom surface keeps
-      // the primary action visibly active and has no dependency on focus.
+      // A custom surface for the primary action: it keeps the accent fill
+      // independent of the popover's key state, which still lags by a runloop
+      // turn while the application activates.
       .buttonStyle(.plain)
 
       Divider()

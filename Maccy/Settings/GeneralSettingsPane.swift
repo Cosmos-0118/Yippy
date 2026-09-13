@@ -9,6 +9,8 @@ struct GeneralSettingsPane: View {
   )
 
   @Default(.searchMode) private var searchMode
+  @Default(.autoCopyOnOptionSelect) private var autoCopyOnOptionSelect
+  @State private var isAccessibilityTrusted = AutoCopyOnSelect.isAccessibilityTrusted
 
   @State private var copyModifier = HistoryItemAction.copy.modifierFlags.description
   @State private var pasteModifier = HistoryItemAction.paste.modifierFlags.description
@@ -100,6 +102,44 @@ struct GeneralSettingsPane: View {
         .fixedSize(horizontal: false, vertical: true)
         .foregroundStyle(.secondary)
         .controlSize(.small)
+      }
+
+      PreferencesCard(title: "Auto-copy", description: "Copy text you highlight in other apps.") {
+        Toggle(isOn: $autoCopyOnOptionSelect) {
+          Text("AutoCopyOnOptionSelect", tableName: "GeneralSettings")
+        }
+        .onChange(of: autoCopyOnOptionSelect) {
+          isAccessibilityTrusted = AutoCopyOnSelect.isAccessibilityTrusted
+          if autoCopyOnOptionSelect && !isAccessibilityTrusted {
+            AutoCopyOnSelect.requestAccessibilityAccess()
+          }
+        }
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Text("AutoCopyOnOptionSelectTooltip", tableName: "GeneralSettings")
+          .fixedSize(horizontal: false, vertical: true)
+          .foregroundStyle(.secondary)
+          .controlSize(.small)
+
+        if autoCopyOnOptionSelect && !isAccessibilityTrusted {
+          Divider()
+          HStack {
+            Label("AccessibilityNotGranted", systemImage: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+              .controlSize(.small)
+            Spacer()
+            Button {
+              AutoCopyOnSelect.requestAccessibilityAccess()
+            } label: {
+              Text("GrantAccess", tableName: "GeneralSettings")
+            }
+            .controlSize(.small)
+          }
+        }
+      }
+      .onAppear {
+        isAccessibilityTrusted = AutoCopyOnSelect.isAccessibilityTrusted
       }
 
       if let notificationsURL {

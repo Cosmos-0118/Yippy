@@ -325,3 +325,43 @@ class ClipboardTests: XCTestCase {
   }
 }
 // swiftlint:enable type_body_length
+
+class AutoCopyOnSelectTests: XCTestCase {
+  func testCopiesWhenOptionHeldAndEnabled() {
+    XCTAssertTrue(AutoCopyOnSelect.shouldAutoCopy(
+      flags: [.option], isEnabled: true, isPaused: false, isYippyActive: false
+    ))
+  }
+
+  func testCopiesWhenOptionHeldWithOtherModifiers() {
+    XCTAssertTrue(AutoCopyOnSelect.shouldAutoCopy(
+      flags: [.option, .shift], isEnabled: true, isPaused: false, isYippyActive: false
+    ))
+  }
+
+  func testDoesNothingWithoutOption() {
+    for flags: NSEvent.ModifierFlags in [[], [.command], [.shift], [.control]] {
+      XCTAssertFalse(AutoCopyOnSelect.shouldAutoCopy(
+        flags: flags, isEnabled: true, isPaused: false, isYippyActive: false
+      ))
+    }
+  }
+
+  func testDoesNothingWhenDisabled() {
+    XCTAssertFalse(AutoCopyOnSelect.shouldAutoCopy(
+      flags: [.option], isEnabled: false, isPaused: false, isYippyActive: false
+    ))
+  }
+
+  func testDoesNothingWhenPaused() {
+    XCTAssertFalse(AutoCopyOnSelect.shouldAutoCopy(
+      flags: [.option], isEnabled: true, isPaused: true, isYippyActive: false
+    ))
+  }
+
+  func testDoesNothingWhenYippyIsActive() {
+    XCTAssertFalse(AutoCopyOnSelect.shouldAutoCopy(
+      flags: [.option], isEnabled: true, isPaused: false, isYippyActive: true
+    ))
+  }
+}

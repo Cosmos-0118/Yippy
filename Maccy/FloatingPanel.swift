@@ -1,5 +1,8 @@
 import Defaults
+import Logging
 import SwiftUI
+
+private let panelLogger = Logger(label: "dev.cosmos0118.Yippy.panel")
 
 // An NSPanel subclass that implements floating panel traits.
 // https://stackoverflow.com/questions/46023769/how-to-show-a-window-without-stealing-focus-on-macos
@@ -83,17 +86,29 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     // `orderFrontRegardless()` deliberately does not activate an agent app.
     // That leaves this panel visibly frontmost but unable to receive keyboard
     // input when it is opened over another application's full-screen Space.
+    panelLogger.warning(
+      "[diag] open() pre-activate isActive=\(NSApp.isActive) isKeyWindow=\(isKeyWindow)"
+    )
     NSApp.activate(ignoringOtherApps: true)
     makeKeyAndOrderFront(nil)
     isPresented = true
+    panelLogger.warning(
+      "[diag] open() post-activate isActive=\(NSApp.isActive) isKeyWindow=\(isKeyWindow)"
+    )
 
     // Moving into a full-screen Space is asynchronous. Reassert key status on
     // the next turn so the source application cannot reclaim it during that
     // transition.
     DispatchQueue.main.async { [weak self] in
       guard let self, self.isPresented else { return }
+      panelLogger.warning(
+        "[diag] open() async re-assert pre isActive=\(NSApp.isActive) isKeyWindow=\(self.isKeyWindow)"
+      )
       NSApp.activate(ignoringOtherApps: true)
       self.makeKeyAndOrderFront(nil)
+      panelLogger.warning(
+        "[diag] open() async re-assert post isActive=\(NSApp.isActive) isKeyWindow=\(self.isKeyWindow)"
+      )
     }
 
     if popupPosition == .statusItem {
@@ -198,6 +213,7 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   }
 
   func windowDidBecomeKey(_ notification: Notification) {
+    panelLogger.warning("[diag] windowDidBecomeKey isActive=\(NSApp.isActive)")
     AppState.shared.preview.enableAutoOpen()
 
     if AppState.shared.navigator.leadHistoryItem != nil {
@@ -211,6 +227,7 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
 
   // Close automatically when out of focus, e.g. outside click.
   override func resignKey() {
+    panelLogger.warning("[diag] resignKey isActive=\(NSApp.isActive)")
     super.resignKey()
     // Don't hide if confirmation is shown.
     if NSApp.alertWindow == nil {

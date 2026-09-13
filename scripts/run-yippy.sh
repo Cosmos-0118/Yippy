@@ -7,10 +7,17 @@ readonly PROJECT_DIR="${SCRIPT_DIR:h}"
 readonly PROJECT_FILE="${PROJECT_DIR}/Maccy.xcodeproj"
 readonly SCHEME="Maccy"
 readonly CONFIGURATION="Debug"
-readonly BUILD_ROOT="${TMPDIR%/}/yippy-build"
+# NOTE: BUILD_ROOT used to live under $TMPDIR, which macOS treats as purgeable
+# (cleared on reboot, by cache cleaners, `rm -rf $TMPDIR`, etc.) — and the final
+# Yippy.app lived inside DerivedData, so any cache clean wiped the app itself.
+# Keep everything under the (gitignored) project-local ./build directory so the
+# shipped .app survives cache clears. Only DerivedData is safe to delete.
+readonly BUILD_ROOT="${PROJECT_DIR}/build"
 readonly DERIVED_DATA="${BUILD_ROOT}/DerivedData"
 readonly SOURCE_PACKAGES="${BUILD_ROOT}/SourcePackages"
-readonly APP_PATH="${DERIVED_DATA}/Build/Products/${CONFIGURATION}/Yippy.app"
+readonly BUILT_APP_PATH="${DERIVED_DATA}/Build/Products/${CONFIGURATION}/Yippy.app"
+readonly DIST_DIR="${BUILD_ROOT}/Yippy"
+readonly APP_PATH="${DIST_DIR}/Yippy.app"
 readonly BUILD_LOG="${BUILD_ROOT}/xcodebuild.log"
 
 # ---- Formatting -------------------------------------------------------
@@ -90,10 +97,10 @@ ok "Stopped"
 
 # ---- Clean --------------------------------------------------------------
 
-step "Cleaning build artifacts"
-rm -rf "${BUILD_ROOT}"
-mkdir -p "${BUILD_ROOT}"
-ok "Cleaned ${BUILD_ROOT}"
+step "Cleaning build intermediates"
+rm -rf "${DERIVED_DATA}"
+mkdir -p "${BUILD_ROOT}" "${DIST_DIR}"
+ok "Cleaned ${DERIVED_DATA} (kept ${DIST_DIR})"
 
 # ---- Build ----------------------------------------------------------------
 
@@ -142,9 +149,17 @@ fi
 
 ok "Build succeeded ${C_DIM}(${build_secs}s)${C_RESET}"
 
-if [[ ! -d "${APP_PATH}" ]]; then
-  fail "build completed but Yippy.app was not produced at ${APP_PATH}"
+if [[ ! -d "${BUILT_APP_PATH}" ]]; then
+  fail "build completed but Yippy.app was not produced at ${BUILT_APP_PATH}"
 fi
+
+# Stage a stable copy outside DerivedData: cleaning intermediates or clearing
+# caches must never delete the app you launch. Only replace the stable copy
+# after a successful build so a failed build can't leave you with nothing.
+step "Staging stable copy"
+rm -rf "${APP_PATH}"
+ditto "${BUILT_APP_PATH}" "${APP_PATH}"
+ok "Staged ${APP_PATH}"
 
 # ---- Launch ---------------------------------------------------------------
 

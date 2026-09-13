@@ -24,6 +24,7 @@ extension Defaults.Keys {
   private static let preferencesSuite: UserDefaults = .standard
 #endif
 
+  static let autoCopyOnOptionSelect = Key<Bool>("autoCopyOnOptionSelect", default: false, suite: preferencesSuite)
   static let clearOnQuit = Key<Bool>("clearOnQuit", default: false, suite: preferencesSuite)
   static let clearSystemClipboard = Key<Bool>("clearSystemClipboard", default: false, suite: preferencesSuite)
   static let clipboardCheckInterval = Key<Double>("clipboardCheckInterval", default: 0.5, suite: preferencesSuite)

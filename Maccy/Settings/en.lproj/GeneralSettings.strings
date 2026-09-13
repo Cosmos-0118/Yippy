@@ -14,6 +14,10 @@
 "PasteAutomatically" = "Paste automatically";
 "PasteWithoutFormatting" = "Paste without formatting";
 "Modifiers" = "Customize the behavior when selecting item:\n• Select with %@ pressed to copy item.\n• Select with %@ pressed to copy and paste item.\n• Select with %@ pressed to copy, clear formatting, and paste item.";
+"AutoCopyOnOptionSelect" = "Copy automatically when selecting text with Option held";
+"AutoCopyOnOptionSelectTooltip" = "When enabled, keep holding ⌥ until after you release the mouse — releasing ⌥ then copies the highlighted text to the clipboard.\nRequires Accessibility access. After every rebuild, re-grant access below.";
+"AccessibilityNotGranted" = "Accessibility access not granted — auto-copy won't work.";
+"GrantAccess" = "Grant Access…";
 "Search" = "Search:";
 "Exact" = "Exact";
 "Fuzzy" = "Fuzzy";

@@ -1,7 +1,10 @@
 import AppKit.NSRunningApplication
 import Defaults
 import KeyboardShortcuts
+import Logging
 import Observation
+
+private let popupLogger = Logger(label: "dev.cosmos0118.Yippy.popup")
 
 enum PopupState {
   // Default; shortcut will toggle the popup
@@ -120,6 +123,7 @@ class Popup {
   }
 
   private func handleFirstKeyDown() {
+    popupLogger.warning("[diag] handleFirstKeyDown isClosed=\(isClosed()) isActive=\(NSApp.isActive)")
     if isClosed() {
       open(height: height)
       state = .opening
@@ -139,6 +143,10 @@ class Popup {
     // specific key combo rather than every key.
     guard !KeyboardShortcuts.isPaused else { return event }
 
+    popupLogger.warning(
+      "[diag] handleEvent type=\(event.type.rawValue) state=\(state) isActive=\(NSApp.isActive) isKeyWindow=\(AppState.shared.appDelegate?.panel.isKeyWindow ?? false)"
+    )
+
     switch event.type {
     case .keyDown:
       return handleKeyDown(event)
@@ -150,6 +158,9 @@ class Popup {
   }
 
   private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+    popupLogger.warning(
+      "[diag] handleKeyDown keyCode=\(event.keyCode) isHotKeyCode=\(isHotKeyCode(Int(event.keyCode))) state=\(state)"
+    )
     if isHotKeyCode(Int(event.keyCode)) {
       if let item = History.shared.pressedShortcutItem {
         AppState.shared.navigator.select(item: item)
@@ -180,10 +191,21 @@ class Popup {
   }
 
   private func handleFlagsChanged(_ event: NSEvent) -> NSEvent? {
+    popupLogger.warning(
+      "[diag] handleFlagsChanged flags=\(event.modifierFlags.rawValue) allReleased=\(allModifiersReleased(event)) state=\(state)"
+    )
     // If we are in cycle mode, releasing modifiers triggers a selection
     if state == .cycle && allModifiersReleased(event) {
       let modifierFlags = NSEvent.ModifierFlags.currentModifierFlags
-      DispatchQueue.main.async {
+      // Selecting here can end in Clipboard.paste(), which synthesizes ⌘V via
+      // a `.combinedSessionState` event source. That source merges the real,
+      // currently-held hardware modifiers into posted events, and this fires
+      // on the very flagsChanged event that reports the open shortcut's own
+      // modifiers (e.g. ⇧⌘) as released — before that release has actually
+      // propagated. Without a settle delay the target app can still receive
+      // the old modifiers merged into the synthetic V, e.g. ⇧⌘V instead of
+      // ⌘V, so it doesn't paste. Mirrors the same fix in AutoCopyOnSelect.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
         AppState.shared.select(flags: modifierFlags)
       }
       return nil
