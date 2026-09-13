@@ -92,6 +92,19 @@ class SlideoutController {
     }
   }
 
+  /// Live-updates the widths while a resize drag is in progress, without the
+  /// `Defaults` write that the public setters perform on every call -- a
+  /// drag reports many pointer-moved events per second, and persisting one
+  /// on each of them is pure overhead until the gesture actually ends.
+  func setLiveWidths(content: CGFloat? = nil, slideout: CGFloat? = nil) {
+    if let content {
+      _contentWidth = max(minimumContentWidth, content).rounded()
+    }
+    if let slideout {
+      _slideoutWidth = max(minimumSlideoutWidth, slideout).rounded()
+    }
+  }
+
   var placement: SlideoutPlacement = .right
   var state: SlideoutState = .closed
   var resizingMode: ResizingMode = .none
@@ -259,6 +272,10 @@ class SlideoutController {
       try? await Task.sleep(for: .milliseconds(Defaults[.previewDelay]))
       guard !Task.isCancelled else { return }
       guard Defaults[.openPreviewAutomatically] else { return }
+      // Belt-and-suspenders alongside `FloatingPanel.close()` cancelling this
+      // task: never animate the preview open against a panel that isn't
+      // presented, in case a task manages to resume in the gap.
+      guard AppState.shared.appDelegate?.panel.isPresented == true else { return }
 
       if !state.isOpen {
         togglePreview(trigger: .autoOpen)

@@ -106,15 +106,10 @@ struct HistoryListView: View {
         .padding(.top, scrollTopPadding)
         .padding(.bottom, scrollBottomPadding)
         .task(id: appState.navigator.scrollTarget) {
-          guard appState.navigator.scrollTarget != nil else { return }
+          guard let selection = appState.navigator.scrollTarget else { return }
 
-          try? await Task.sleep(for: .milliseconds(10))
-          guard !Task.isCancelled else { return }
-
-          if let selection = appState.navigator.scrollTarget {
-            proxy.scrollTo(selection)
-            appState.navigator.scrollTarget = nil
-          }
+          proxy.scrollTo(selection)
+          appState.navigator.scrollTarget = nil
         }
         .onChange(of: scenePhase) {
           if scenePhase == .active {

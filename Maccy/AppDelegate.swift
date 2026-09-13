@@ -124,6 +124,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     migrateUserDefaults()
+    // AppState is created during will-finish-launching, before migrations run.
+    // Keep its live layout controller in sync with a migrated default width.
+    AppState.shared.preview.contentWidth = Defaults[.windowSize].width
     disableUnusedGlobalHotkeys()
 
     if #available(macOS 15, *) {
@@ -220,6 +223,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
       // it ever scrolled. Only touch installs that never customized this --
       // still exactly the old literal default -- a real manual resize is
       // left alone.
+      Defaults[.windowSize] = WindowSizing.migratedDefault(from: Defaults[.windowSize])
+    }
+
+    ensureMigration(key: "2026-09-13-increase-default-window-size") {
+      // Give the history list a little more room while preserving sizes that
+      // differ from either of the two shipped defaults.
       Defaults[.windowSize] = WindowSizing.migratedDefault(from: Defaults[.windowSize])
     }
 

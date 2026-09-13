@@ -43,6 +43,13 @@ final class SlideoutPlacementTests: XCTestCase {
     )
   }
 
+  func testPreviousDefaultWindowSizeMigratesToRoomierDefault() {
+    XCTAssertEqual(
+      WindowSizing.migratedDefault(from: WindowSizing.previousDefaultSize),
+      WindowSizing.defaultSize
+    )
+  }
+
   func testCustomizedWindowSizeIsNotMigrated() {
     let customizedSize = NSSize(width: 450, height: 799)
     XCTAssertEqual(WindowSizing.migratedDefault(from: customizedSize), customizedSize)
@@ -59,6 +66,27 @@ final class SlideoutPlacementTests: XCTestCase {
     XCTAssertEqual(
       WindowSizing.preferredHeight(requested: 900, minimum: 180, maximum: 480),
       480
+    )
+  }
+
+  func testOpeningHeightProvidesComfortableRoomForShortContent() {
+    XCTAssertEqual(
+      WindowSizing.openingHeight(requested: 260, saved: 540, minimum: 180),
+      480
+    )
+  }
+
+  func testOpeningHeightStillHonorsManuallyReducedSize() {
+    XCTAssertEqual(
+      WindowSizing.openingHeight(requested: 260, saved: 320, minimum: 180),
+      320
+    )
+  }
+
+  func testOpeningHeightAllowsContentToGrowToSavedLimit() {
+    XCTAssertEqual(
+      WindowSizing.openingHeight(requested: 700, saved: 540, minimum: 180),
+      540
     )
   }
 

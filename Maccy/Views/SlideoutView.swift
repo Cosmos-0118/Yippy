@@ -72,7 +72,7 @@ where Content: View, Slideout: View {
         DragGesture()
           .onChanged({ value in
             if let window = controller.nswindow {
-              controller.slideoutWidth = min(
+              let liveSlideoutWidth = min(
                 max(
                   controller.minimumSlideoutWidth,
                   controller.slideoutResizeWidth + (leftToRight ? -1 : 1)
@@ -80,7 +80,10 @@ where Content: View, Slideout: View {
                 ),
                 window.frame.width - controller.minimumContentWidth
               )
-              controller.contentWidth = window.frame.width - controller.slideoutWidth
+              controller.setLiveWidths(
+                content: window.frame.width - liveSlideoutWidth,
+                slideout: liveSlideoutWidth
+              )
             }
           })
           .onEnded({ _ in

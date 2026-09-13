@@ -2,15 +2,23 @@ import Defaults
 import SwiftUI
 
 enum WindowSizing {
-  static let defaultSize = NSSize(width: 450, height: 480)
+  static let defaultSize = NSSize(width: 500, height: 540)
+  static let previousDefaultSize = NSSize(width: 450, height: 480)
   static let legacyDefaultSize = NSSize(width: 450, height: 800)
+  static let comfortableOpeningHeight: CGFloat = 480
 
   static func migratedDefault(from size: NSSize) -> NSSize {
-    size == legacyDefaultSize ? defaultSize : size
+    [previousDefaultSize, legacyDefaultSize].contains(size) ? defaultSize : size
   }
 
   static func preferredHeight(requested: CGFloat, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
     min(max(requested, minimum), max(maximum, minimum))
+  }
+
+  static func openingHeight(requested: CGFloat, saved: CGFloat, minimum: CGFloat) -> CGFloat {
+    let contentHeight = min(requested, saved)
+    let comfortableHeight = min(comfortableOpeningHeight, saved)
+    return max(max(contentHeight, comfortableHeight), minimum)
   }
 
   static func resizedPreference(
@@ -125,7 +133,11 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     let size = Defaults[.windowSize]
     let miniumHeight: CGFloat = AppState.shared.popup.minimumHeight
     let finalWidth = min(frame.width, size.width)
-    let finalHeight = max(min(height, size.height), miniumHeight)
+    let finalHeight = WindowSizing.openingHeight(
+      requested: height,
+      saved: size.height,
+      minimum: miniumHeight
+    )
     setContentSize(NSSize(width: finalWidth, height: finalHeight))
     setFrameOrigin(popupPosition.origin(size: frame.size, statusBarButton: statusBarButton))
     // `orderFrontRegardless()` deliberately does not activate an agent app.
@@ -341,6 +353,10 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     isPresented = false
     previousApp = nil
     super.close()
+    // Without this, a delayed auto-open task started just before closing can
+    // still fire afterward and reopen the preview against a panel nobody can
+    // see (or, worse, the next presentation of it).
+    AppState.shared.preview.cancelAutoOpen()
     AppState.shared.preview.state = .closed
     statusBarButton?.isHighlighted = false
     if shouldNotify {

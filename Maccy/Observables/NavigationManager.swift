@@ -286,6 +286,14 @@ class NavigationManager { // swiftlint:disable:this type_body_length
     }
   }
 
+  /// Selects an item already resolved by index from a `Popup` cycle-session
+  /// snapshot, bypassing the linear history scan that keyboard navigation
+  /// normally performs to find "the next item". This keeps repeated
+  /// shortcut presses O(1) instead of O(n) per press.
+  func selectForCycling(_ item: HistoryItemDecorator) {
+    selectFromKeyboardNavigation(item: item)
+  }
+
   func highlightLast() {
     guard let lead = leadSelection else { return }
 

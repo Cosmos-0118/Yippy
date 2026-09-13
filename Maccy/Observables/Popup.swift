@@ -1,5 +1,6 @@
 import AppKit.NSRunningApplication
 import Defaults
+import Foundation
 import KeyboardShortcuts
 import Observation
 
@@ -13,6 +14,18 @@ enum PopupState {
   // Transition state when the shortcut is first pressed and
   // we don't know whether we are in "toggle" or "cycle" mode.
   case opening
+}
+
+/// Tracks a hold-and-repeat cycling session started by the popup shortcut.
+///
+/// The snapshot is captured once, when cycling begins, so each subsequent
+/// press only needs to advance an index -- O(1) -- instead of re-scanning
+/// history to find "the current item" and then "the next item" (O(n) per
+/// press, approaching O(n^2) over a full cycle through history).
+private struct CycleSession {
+  let id = UUID()
+  let snapshot: [HistoryItemDecorator]
+  var index: Int
 }
 
 @Observable
@@ -52,6 +65,8 @@ class Popup {
   private var eventsMonitor: Any?
 
   private var state: PopupState = .toggle
+  private var cycleSession: CycleSession?
+  private var pendingCycleRender = false
 
   init() {
     KeyboardShortcuts.onKeyDown(for: .popup, action: handleFirstKeyDown)
@@ -83,6 +98,7 @@ class Popup {
 
   func reset() {
     state = .toggle
+    endCycleSession()
     KeyboardShortcuts.enable(.popup)
   }
 
@@ -104,10 +120,10 @@ class Popup {
     }
     minHeight = max(headerHeight + Self.verticalPadding, minHeight)
 
-    return WindowSizing.preferredHeight(
+    return WindowSizing.openingHeight(
       requested: height,
-      minimum: minHeight,
-      maximum: Defaults[.windowSize].height
+      saved: Defaults[.windowSize].height,
+      minimum: minHeight
     )
   }
 
@@ -153,7 +169,11 @@ class Popup {
 
   private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
     if isHotKeyCode(Int(event.keyCode)) {
-      if let item = History.shared.pressedShortcutItem {
+      // Skip once cycling has begun: this is an O(n) scan over history, and
+      // continuing to run it on every repeat press could let a shortcut that
+      // collides with a numbered/pinned item's own shortcut hijack the
+      // press and paste immediately instead of cycling.
+      if state != .cycle, let item = History.shared.pressedShortcutItem {
         AppState.shared.navigator.select(item: item)
         let modifierFlags = NSEvent.ModifierFlags.currentModifierFlags
         Task { @MainActor in
@@ -164,17 +184,17 @@ class Popup {
 
       if state == .opening {
         state = .cycle
-        // Next 'if' will highlight next item and then return nil
+        beginCycleSession()
+        // Next 'if' will advance to the next item and then return nil
       }
 
       if state == .cycle {
         // History-only: this cycle is confirmed by releasing modifiers (see
         // handleFlagsChanged below), which immediately acts on whatever is
-        // highlighted. `NavigationManager.highlightNext(allowCycle:)` walks
-        // into footer items (Clear, Preferences, About, Quit) once history is
-        // exhausted, so cycling one tap too far and releasing would run that
-        // footer action instead of pasting a history item.
-        AppState.shared.navigator.highlightNextHistoryItem()
+        // highlighted. Landing on a footer item (Clear, Preferences, About,
+        // Quit) there would run that action instead of pasting a history
+        // item, so the cycle session's snapshot never includes them.
+        advanceCycleSession()
         return nil
       }
 
@@ -188,22 +208,90 @@ class Popup {
   }
 
   private func handleFlagsChanged(_ event: NSEvent) -> NSEvent? {
-    // If we are in cycle mode, releasing modifiers triggers a selection
-    if state == .cycle && allModifiersReleased(event) {
+    // If we are in cycle mode, releasing a modifier the shortcut requires
+    // triggers a selection -- e.g. for a ⌘⇧C shortcut, releasing Shift while
+    // still holding Command is enough to commit, matching how holding one
+    // key while tapping another to cycle (e.g. ⌘-Tab) normally works.
+    if state == .cycle && requiredModifierReleased(event) {
+      let sessionID = cycleSession?.id
+      // Only residual modifiers beyond the shortcut's own decide the paste
+      // action (HistoryItemAction). The shortcut's own modifiers are how
+      // cycling was invoked, not a requested action, and since cycling can
+      // now commit before every one of them is released, a lone leftover
+      // shortcut modifier (e.g. bare .shift from a ⌘⇧C shortcut) must not
+      // reach HistoryItemAction, where it would resolve to .unknown and
+      // silently commit nothing.
+      let shortcutModifiers = KeyboardShortcuts.Name.popup.shortcut?.modifiers ?? []
       let modifierFlags = NSEvent.ModifierFlags.currentModifierFlags
-      DispatchQueue.main.async {
+        .subtracting(shortcutModifiers)
+      DispatchQueue.main.async { [weak self] in
+        // A session ID guard: without it, a commit delayed behind the main
+        // queue could land on a cycle session started after this one.
+        guard let self, self.cycleSession?.id == sessionID else { return }
+        self.endCycleSession()
         AppState.shared.select(flags: modifierFlags)
       }
       return nil
     }
 
     // Otherwise if in opening mode, enter toggle mode
-    if state == .opening && allModifiersReleased(event) {
+    if state == .opening && requiredModifierReleased(event) {
       state = .toggle
       return event
     }
 
     return event
+  }
+
+  private func beginCycleSession() {
+    let snapshot = AppState.shared.history.visibleItems
+    guard !snapshot.isEmpty else { return }
+
+    // -1 when nothing is currently selected (e.g. a paste stack is active,
+    // or this press raced the view's initial-selection setup) so the first
+    // advance below lands on index 0 -- matching highlightFirst()'s old
+    // fallback -- instead of skipping straight to index 1.
+    let startIndex = AppState.shared.navigator.leadSelection
+      .flatMap { id in snapshot.firstIndex { $0.id == id } } ?? -1
+
+    cycleSession = CycleSession(snapshot: snapshot, index: startIndex)
+    AppState.shared.preview.disableAutoOpen()
+  }
+
+  private func advanceCycleSession() {
+    guard var session = cycleSession, !session.snapshot.isEmpty else {
+      // No usable snapshot (e.g. history was empty when cycling began);
+      // fall back to ordinary navigation rather than doing nothing.
+      AppState.shared.navigator.highlightNextHistoryItem()
+      return
+    }
+
+    session.index = (session.index + 1) % session.snapshot.count
+    cycleSession = session
+    scheduleCycleRender()
+  }
+
+  /// Coalesces visual updates to once per main-run-loop turn: rapid presses
+  /// (e.g. OS key-repeat while the shortcut key is held down) can advance
+  /// the index many times before SwiftUI gets a chance to render, but only
+  /// the latest pending index needs to actually be applied.
+  private func scheduleCycleRender() {
+    guard !pendingCycleRender else { return }
+    pendingCycleRender = true
+
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.pendingCycleRender = false
+      guard let session = self.cycleSession else { return }
+      AppState.shared.navigator.selectForCycling(session.snapshot[session.index])
+    }
+  }
+
+  private func endCycleSession() {
+    guard cycleSession != nil else { return }
+    cycleSession = nil
+    pendingCycleRender = false
+    AppState.shared.preview.enableAutoOpen()
   }
 
   private func isHotKeyCode(_ keyCode: Int) -> Bool {
@@ -223,7 +311,17 @@ class Popup {
       shortcut.modifiers.intersection(.deviceIndependentFlagsMask)
   }
 
-  private func allModifiersReleased(_ event: NSEvent) -> Bool {
-    return event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
+  /// True once the event no longer holds down every modifier the popup
+  /// shortcut itself requires -- not necessarily every modifier key on the
+  /// keyboard. For a multi-modifier shortcut (e.g. ⌘⇧C) this fires as soon
+  /// as the first of its modifiers is released, rather than waiting for all
+  /// of them (which could also be delayed by an unrelated modifier like Fn
+  /// or Caps Lock still being reported as held).
+  private func requiredModifierReleased(_ event: NSEvent) -> Bool {
+    guard let shortcut = KeyboardShortcuts.Name.popup.shortcut else { return true }
+
+    let required = shortcut.modifiers.intersection(.deviceIndependentFlagsMask)
+    let current = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    return !current.isSuperset(of: required)
   }
 }
