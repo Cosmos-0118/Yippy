@@ -232,6 +232,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
       Defaults[.windowSize] = WindowSizing.migratedDefault(from: Defaults[.windowSize])
     }
 
+    ensureMigration(key: "2026-09-14-infer-custom-window-size") {
+      // `hasCustomWindowSize` didn't exist before this, and now gates
+      // whether `windowSize` acts as an auto-fit ceiling at all (see
+      // `WindowSizing.openingHeight`). By this point the migrations above
+      // have already normalized the two old shipped defaults, so anything
+      // still exactly equal to the current default was never touched by the
+      // user; anything else can only be a real manual resize, since nothing
+      // else has ever written a different value here.
+      if Defaults[.windowSize] != WindowSizing.defaultSize {
+        Defaults[.hasCustomWindowSize] = true
+      }
+    }
+
     // The following defaults are not used in Maccy 2.x
     // and should be removed in 3.x.
     // - LaunchAtLogin__hasMigrated

@@ -364,4 +364,12 @@ class AutoCopyOnSelectTests: XCTestCase {
       flags: [.option], isEnabled: true, isPaused: false, isYippyActive: true
     ))
   }
+
+  func testCopySucceededWhenChangeCountIncremented() {
+    XCTAssertTrue(AutoCopyOnSelect.didCopySucceed(beforeChangeCount: 5, afterChangeCount: 6))
+  }
+
+  func testCopyDidNotSucceedWhenChangeCountUnchanged() {
+    XCTAssertFalse(AutoCopyOnSelect.didCopySucceed(beforeChangeCount: 5, afterChangeCount: 5))
+  }
 }

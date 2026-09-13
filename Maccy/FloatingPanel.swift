@@ -6,6 +6,9 @@ enum WindowSizing {
   static let previousDefaultSize = NSSize(width: 450, height: 480)
   static let legacyDefaultSize = NSSize(width: 450, height: 800)
   static let comfortableOpeningHeight: CGFloat = 480
+  // How much of the screen an un-customized window is allowed to fill while
+  // auto-fitting to content, before it scrolls instead of growing further.
+  static let autoFitScreenHeightFraction: CGFloat = 0.8
 
   static func migratedDefault(from size: NSSize) -> NSSize {
     [previousDefaultSize, legacyDefaultSize].contains(size) ? defaultSize : size
@@ -15,9 +18,24 @@ enum WindowSizing {
     min(max(requested, minimum), max(maximum, minimum))
   }
 
-  static func openingHeight(requested: CGFloat, saved: CGFloat, minimum: CGFloat) -> CGFloat {
-    let contentHeight = min(requested, saved)
-    let comfortableHeight = min(comfortableOpeningHeight, saved)
+  // Caps content-driven height (used both when opening and while the window
+  // auto-grows during a session) at `saved` only once the user has actually
+  // dragged the window to a size themselves -- `hasCustomSize`. Until then,
+  // `saved` is just a stale leftover from whatever it last happened to be
+  // (the shipped default, or an earlier auto-fit), so the real ceiling is a
+  // generous fraction of the screen instead: the window fits its content up
+  // to that, then scrolls, rather than reopening small forever because it
+  // was never manually resized.
+  static func openingHeight(
+    requested: CGFloat,
+    saved: CGFloat,
+    minimum: CGFloat,
+    hasCustomSize: Bool,
+    screenMaximum: CGFloat
+  ) -> CGFloat {
+    let ceiling = hasCustomSize ? saved : screenMaximum * autoFitScreenHeightFraction
+    let contentHeight = min(requested, ceiling)
+    let comfortableHeight = min(comfortableOpeningHeight, ceiling)
     return max(max(contentHeight, comfortableHeight), minimum)
   }
 
@@ -47,6 +65,13 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   // deactivating an app doesn't clear its window's first responder.
   private var previousApp: NSRunningApplication?
   private var liveResizeStartSize: NSSize?
+
+  // Bumped on every `open`/`close`, so `open`'s own deferred reactivation
+  // closures below can tell "the panel happens to be presented again" apart
+  // from "this is still the same presentation it was scheduled from" before
+  // acting. (`waitForActivation` has its own equivalent via `isPresented`,
+  // since a close always precedes it.)
+  private var presentationGeneration = 0
 
   override var isMovable: Bool {
     get { Defaults[.popupPosition] != .statusItem }
@@ -133,10 +158,13 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     let size = Defaults[.windowSize]
     let miniumHeight: CGFloat = AppState.shared.popup.minimumHeight
     let finalWidth = min(frame.width, size.width)
+    let screenMaximum = screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? size.height
     let finalHeight = WindowSizing.openingHeight(
       requested: height,
       saved: size.height,
-      minimum: miniumHeight
+      minimum: miniumHeight,
+      hasCustomSize: Defaults[.hasCustomWindowSize],
+      screenMaximum: screenMaximum
     )
     setContentSize(NSSize(width: finalWidth, height: finalHeight))
     setFrameOrigin(popupPosition.origin(size: frame.size, statusBarButton: statusBarButton))
@@ -146,18 +174,24 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     NSApp.activate(ignoringOtherApps: true)
     makeKeyAndOrderFront(nil)
     isPresented = true
+    presentationGeneration += 1
+    let generation = presentationGeneration
 
     // Moving into a full-screen Space is asynchronous. Reassert key status on
     // the next turn so the source application cannot reclaim it during that
-    // transition.
+    // transition. The generation check catches what a plain `isPresented`
+    // check can't: a close followed by a fresh reopen before this runs,
+    // where `isPresented` is true again but for a different presentation
+    // than the one that scheduled this closure.
     DispatchQueue.main.async { [weak self] in
-      guard let self, self.isPresented else { return }
+      guard let self, self.isPresented, self.presentationGeneration == generation else { return }
       NSApp.activate(ignoringOtherApps: true)
       self.makeKeyAndOrderFront(nil)
     }
 
     if popupPosition == .statusItem {
-      DispatchQueue.main.async {
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.presentationGeneration == generation else { return }
         self.statusBarButton?.isHighlighted = true
       }
     }
@@ -171,6 +205,12 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
       minimum: AppState.shared.popup.minimumHeight,
       maximum: screenMaximum
     )
+
+    // Reject sub-pixel/no-op targets: content height is recalculated on every
+    // keystroke while searching, and without this a settled window would
+    // keep restarting this 200ms animation from itself to itself.
+    guard abs(newSize.height - frame.size.height) >= 0.5 else { return }
+
     var newOrigin = frame.origin
     newOrigin.y += (frame.height - newSize.height)
 
@@ -252,12 +292,20 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
   }
 
   func windowDidEndLiveResize(_ notification: Notification) {
+    let previousSize = Defaults[.windowSize]
     let size = WindowSizing.resizedPreference(
-      previous: Defaults[.windowSize],
+      previous: previousSize,
       liveResizeStart: liveResizeStartSize ?? frame.size,
       final: frame.size,
       contentWidth: AppState.shared.preview.contentWidth
     )
+    // `resizedPreference` only changes the height when this drag actually
+    // moved it (leaving a width-only resize's height as `previous`) -- that
+    // is exactly "the user deliberately chose a height," which is what
+    // should stop the window from auto-fitting to content from now on.
+    if size.height != previousSize.height {
+      Defaults[.hasCustomWindowSize] = true
+    }
     liveResizeStartSize = nil
     saveWindowFrame(frame: NSRect(origin: frame.origin, size: size))
 
@@ -317,40 +365,90 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier else { return }
 
     appToRestore.activate()
-    runWhenActive(appToRestore, attemptsRemaining: 10, completion: completion)
+    waitForActivation(of: appToRestore, completion: completion)
   }
 
-  private func runWhenActive(
-    _ app: NSRunningApplication,
-    attemptsRemaining: Int,
-    completion: (() -> Void)?
-  ) {
-    guard !isPresented, !app.isTerminated else { return }
+  /// Resolves `completion` exactly once, as soon as `app` actually becomes
+  /// frontmost -- via `NSWorkspace`'s activation notification instead of
+  /// polling every 50ms, which was long enough on a slow full-screen Space
+  /// transition to exhaust its fixed retry budget and silently drop a
+  /// completion (e.g. a pending paste) that would have succeeded a moment
+  /// later. Gives up -- without invoking `completion` -- if the user
+  /// activates a third app, this panel gets presented again, or half a
+  /// second passes with no activation at all.
+  private func waitForActivation(of app: NSRunningApplication, completion: (() -> Void)?) {
+    var observer: NSObjectProtocol?
+    var resolved = false
 
+    func finish(invokingCompletion: Bool) {
+      guard !resolved else { return }
+      resolved = true
+      if let observer {
+        NSWorkspace.shared.notificationCenter.removeObserver(observer)
+      }
+      if invokingCompletion {
+        completion?()
+      }
+    }
+
+    observer = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didActivateApplicationNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] notification in
+      guard let self else { return }
+      guard let activated = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+      else {
+        return
+      }
+
+      if activated.processIdentifier == app.processIdentifier {
+        // The panel having been presented again means a fresh interaction
+        // started while this one was still waiting -- give up rather than
+        // paste into whatever this restored activation was racing.
+        finish(invokingCompletion: !self.isPresented)
+      } else if activated.bundleIdentifier != Bundle.main.bundleIdentifier {
+        finish(invokingCompletion: false)
+      }
+    }
+
+    // The caller already called `app.activate()` before this method runs,
+    // and activation can complete -- and its notification be delivered --
+    // before the observer above was even registered, especially for an app
+    // that's already running. Check the already-current state right after
+    // registering rather than assuming the notification is still pending;
+    // otherwise a fast activation is missed entirely and the paste this
+    // exists to deliver silently drops after the full timeout.
     if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
-      completion?()
+      finish(invokingCompletion: !isPresented)
       return
     }
 
-    // Wait up to half a second for activation/Space switching. Stop if the
-    // user activates a third app, so a delayed paste can never land there.
-    guard attemptsRemaining > 0,
-          NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier else {
-      return
-    }
-
-    if attemptsRemaining == 5 {
+    // Mirrors the previous scheme's mid-point re-kick: activation
+    // occasionally doesn't "take" on the first call.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+      guard !resolved, !app.isTerminated else { return }
       app.activate()
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, app] in
+
+    // Half a second mirrors the previous 10 * 50ms retry budget. Re-check
+    // current state before giving up, for the same reason as above: a very
+    // late activation's notification can land in the gap right before this
+    // fires, but `frontmostApplication` is always authoritative right now.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
       guard let self else { return }
-      self.runWhenActive(app, attemptsRemaining: attemptsRemaining - 1, completion: completion)
+      if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
+        finish(invokingCompletion: !self.isPresented)
+      } else {
+        finish(invokingCompletion: false)
+      }
     }
   }
 
   override func close() {
     let shouldNotify = isPresented
     isPresented = false
+    presentationGeneration += 1
     previousApp = nil
     super.close()
     // Without this, a delayed auto-open task started just before closing can

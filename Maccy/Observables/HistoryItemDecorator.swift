@@ -1,6 +1,7 @@
 import AppKit.NSWorkspace
 import Defaults
 import Foundation
+import ImageIO
 import Observation
 import Sauce
 
@@ -25,18 +26,36 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
   }
   var shortcuts: [KeyShortcut] = []
 
+  // Cached per bundle identifier -- like `ApplicationImageCache` -- rather
+  // than resolved once per decorator at `init`: `History.load()` builds a
+  // decorator for every fetched item (up to ~1000) up front, most of which
+  // are never rendered, so eagerly resolving this for every one of them
+  // would move `NSWorkspace` Launch Services lookups onto the launch path
+  // to save re-running them for the handful of rows actually shown. This
+  // still turns every *repeat* access (e.g. `accessibilityLabel`, read on
+  // every row render) into a dictionary lookup instead of a fresh query.
   var application: String? {
     if item.universalClipboard {
       return "iCloud"
     }
-
-    guard let bundle = item.application,
-      let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
-    else {
+    guard let bundle = item.application else {
       return nil
     }
+    return Self.cachedApplicationName(forBundleIdentifier: bundle)
+  }
 
-    return url.deletingPathExtension().lastPathComponent
+  private static var applicationNameCache: [String: String] = [:]
+
+  private static func cachedApplicationName(forBundleIdentifier bundleIdentifier: String) -> String? {
+    if let cached = applicationNameCache[bundleIdentifier] {
+      return cached
+    }
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+      return nil
+    }
+    let name = url.deletingPathExtension().lastPathComponent
+    applicationNameCache[bundleIdentifier] = name
+    return name
   }
 
   var hasImage: Bool { item.image != nil }
@@ -103,36 +122,95 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
     synchronizeItemTitle()
   }
 
+  // `item` is a SwiftData model and can only be touched on the main actor,
+  // so this reads the raw `Data` here (a plain, Sendable value) and hands
+  // that -- not the model -- across to the background decode below. Reading
+  // `item.imageData` (not `item.image`) is what actually keeps the full
+  // decode off the main actor: `item.image` (Models/HistoryItem.swift)
+  // decodes and caches a full-resolution `NSImage` as a side effect of just
+  // checking non-nil, which would defeat this entirely.
   @MainActor
   func ensureThumbnailImage() {
-    guard item.image != nil else {
-      return
-    }
     guard thumbnailImage == nil else {
       return
     }
     guard thumbnailImageGenerationTask == nil else {
       return
     }
+    guard let data = item.imageData else {
+      return
+    }
+    let scale = Self.mainScreenScale()
+    let maxPixelSize = Self.maxPixelSize(for: HistoryItemDecorator.thumbnailImageSize, scale: scale)
     thumbnailImageGenerationTask = Task { [weak self] in
-      self?.generateThumbnailImage()
+      let image = await Self.downsampledImage(data: data, maxPixelSize: maxPixelSize, scale: scale)
+      guard let self, !Task.isCancelled else { return }
+      self.thumbnailImage = image
+      // Deliberately not cleared to nil here (matching the previous
+      // behavior this replaced): a permanently-undecodable image would
+      // otherwise retry its decode on every row appearance forever.
     }
   }
 
   @MainActor
   func ensurePreviewImage() {
-    guard item.image != nil else {
-      return
-    }
     guard previewImage == nil else {
       return
     }
     guard previewImageGenerationTask == nil else {
       return
     }
-    previewImageGenerationTask = Task { [weak self] in
-      self?.generatePreviewImage()
+    guard let data = item.imageData else {
+      return
     }
+    let scale = Self.mainScreenScale()
+    let maxPixelSize = Self.maxPixelSize(for: HistoryItemDecorator.previewImageSize, scale: scale)
+    previewImageGenerationTask = Task { [weak self] in
+      let image = await Self.downsampledImage(data: data, maxPixelSize: maxPixelSize, scale: scale)
+      guard let self, !Task.isCancelled else { return }
+      self.previewImage = image
+    }
+  }
+
+  @MainActor
+  private static func mainScreenScale() -> CGFloat {
+    NSScreen.main?.backingScaleFactor ?? 2
+  }
+
+  @MainActor
+  private static func maxPixelSize(for size: NSSize, scale: CGFloat) -> CGFloat {
+    max(size.width, size.height) * scale
+  }
+
+  /// Downsamples off the main actor using Image I/O, which decodes directly
+  /// to the target pixel size instead of first fully decoding the source
+  /// image the way `NSImage.resized(to:)` (still used by `sizeImages()`)
+  /// does -- the full decode plus draw-based resize is exactly the
+  /// main-actor CPU cost that made scrolling image-heavy history hitch.
+  nonisolated private static func downsampledImage(data: Data, maxPixelSize: CGFloat, scale: CGFloat) async -> NSImage? {
+    await Task.detached(priority: .userInitiated) {
+      guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+        return nil
+      }
+      let options: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceShouldCacheImmediately: true
+      ]
+      guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+        return nil
+      }
+      // `maxPixelSize` was scaled up for the screen's backing scale, so the
+      // resulting `CGImage` is in device pixels -- divide back out to get
+      // the logical point size `NSImage.size` (and every consumer sizing a
+      // view off it) expects, or this renders 2x too large on Retina.
+      let pointSize = NSSize(
+        width: CGFloat(thumbnail.width) / scale,
+        height: CGFloat(thumbnail.height) / scale
+      )
+      return NSImage(cgImage: thumbnail, size: pointSize)
+    }.value
   }
 
   @MainActor

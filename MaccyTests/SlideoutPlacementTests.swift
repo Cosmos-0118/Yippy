@@ -36,6 +36,17 @@ final class SlideoutPlacementTests: XCTestCase {
     XCTAssertEqual(placement, .left)
   }
 
+  func testStoredPreviewWidthIsRaisedToReadableMinimum() {
+    let controller = SlideoutController(
+      onContentResize: { _ in },
+      onSlideoutResize: { _ in }
+    )
+
+    controller.slideoutWidth = 200
+
+    XCTAssertEqual(controller.slideoutWidth, 300)
+  }
+
   func testLegacyDefaultWindowSizeMigratesToNewDefault() {
     XCTAssertEqual(
       WindowSizing.migratedDefault(from: WindowSizing.legacyDefaultSize),
@@ -71,22 +82,54 @@ final class SlideoutPlacementTests: XCTestCase {
 
   func testOpeningHeightProvidesComfortableRoomForShortContent() {
     XCTAssertEqual(
-      WindowSizing.openingHeight(requested: 260, saved: 540, minimum: 180),
+      WindowSizing.openingHeight(
+        requested: 260, saved: 540, minimum: 180,
+        hasCustomSize: true, screenMaximum: screen.height
+      ),
       480
     )
   }
 
   func testOpeningHeightStillHonorsManuallyReducedSize() {
     XCTAssertEqual(
-      WindowSizing.openingHeight(requested: 260, saved: 320, minimum: 180),
+      WindowSizing.openingHeight(
+        requested: 260, saved: 320, minimum: 180,
+        hasCustomSize: true, screenMaximum: screen.height
+      ),
       320
     )
   }
 
   func testOpeningHeightAllowsContentToGrowToSavedLimit() {
     XCTAssertEqual(
-      WindowSizing.openingHeight(requested: 700, saved: 540, minimum: 180),
+      WindowSizing.openingHeight(
+        requested: 700, saved: 540, minimum: 180,
+        hasCustomSize: true, screenMaximum: screen.height
+      ),
       540
+    )
+  }
+
+  func testOpeningHeightAutoFitsToScreenWhenNotCustomized() {
+    // screen.height is 900, saved (540, an old/stale value) is ignored
+    // entirely since the size has never been customized -- content grows up
+    // to 80% of the screen instead.
+    XCTAssertEqual(
+      WindowSizing.openingHeight(
+        requested: 900, saved: 540, minimum: 180,
+        hasCustomSize: false, screenMaximum: screen.height
+      ),
+      720
+    )
+  }
+
+  func testOpeningHeightStillFitsSmallContentWhenNotCustomized() {
+    XCTAssertEqual(
+      WindowSizing.openingHeight(
+        requested: 260, saved: 540, minimum: 180,
+        hasCustomSize: false, screenMaximum: screen.height
+      ),
+      480
     )
   }
 

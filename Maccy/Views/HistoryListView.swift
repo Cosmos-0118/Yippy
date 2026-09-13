@@ -66,6 +66,12 @@ struct HistoryListView: View {
   }
 
   var body: some View {
+    // Computed once per render instead of on every one of the several reads
+    // below -- each of which used to re-run its own `.filter(\.isVisible)`
+    // pass over history.
+    let pinnedItems = pinnedItems
+    let unpinnedItems = unpinnedItems
+    let pinsVisible = !pinnedItems.isEmpty
     let topPinsVisible = pinTo == .top && pinsVisible
     let bottomPinsVisible = pinTo == .bottom && pinsVisible
     let historyEmpty = unpinnedItems.isEmpty
@@ -130,9 +136,6 @@ struct HistoryListView: View {
           GeometryReader { geo in
             Color.clear
               .task(id: appState.popup.needsResize) {
-                try? await Task.sleep(for: .milliseconds(10))
-                guard !Task.isCancelled else { return }
-
                 if appState.popup.needsResize {
                   appState.popup.resize(height: geo.size.height)
                 }

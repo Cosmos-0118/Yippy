@@ -120,10 +120,17 @@ class Popup {
     }
     minHeight = max(headerHeight + Self.verticalPadding, minHeight)
 
+    let panel = AppState.shared.appDelegate?.panel
+    let screenMaximum = panel?.screen?.visibleFrame.height
+      ?? NSScreen.main?.visibleFrame.height
+      ?? Defaults[.windowSize].height
+
     return WindowSizing.openingHeight(
       requested: height,
       saved: Defaults[.windowSize].height,
-      minimum: minHeight
+      minimum: minHeight,
+      hasCustomSize: Defaults[.hasCustomWindowSize],
+      screenMaximum: screenMaximum
     )
   }
 

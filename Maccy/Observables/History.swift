@@ -13,11 +13,21 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   static let shared = History()
   let logger = Logger(label: "dev.cosmos0118.Yippy")
 
-  var items: [HistoryItemDecorator] = []
+  // `pinnedItems`/`unpinnedItems` used to be `items.filter(...)` computed
+  // properties, recomputing an O(n) scan on every read -- and both this view
+  // and consumers like `HistoryListView` read them several times per body
+  // evaluation. Caching them alongside `items` turns every read after the
+  // first back into an array copy instead of a fresh filter pass.
+  var items: [HistoryItemDecorator] = [] {
+    didSet {
+      pinnedItems = items.filter(\.isPinned)
+      unpinnedItems = items.filter(\.isUnpinned)
+    }
+  }
   var pasteStack: PasteStack?
 
-  var pinnedItems: [HistoryItemDecorator] { items.filter(\.isPinned) }
-  var unpinnedItems: [HistoryItemDecorator] { items.filter(\.isUnpinned) }
+  private(set) var pinnedItems: [HistoryItemDecorator] = []
+  private(set) var unpinnedItems: [HistoryItemDecorator] = []
 
   var searchQuery: String = "" {
     didSet {

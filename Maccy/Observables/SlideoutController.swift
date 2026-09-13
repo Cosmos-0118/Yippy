@@ -72,7 +72,11 @@ class SlideoutController {
   var contentResizeWidth: CGFloat = 0
   var contentAnimationWidth: CGFloat?
 
-  let minimumSlideoutWidth: CGFloat = 200
+  // The preview shows multi-column metadata (app, dates, and copy count),
+  // so the old 200pt minimum leaves its content area too narrow to render
+  // coherently. Assigning an older stored value through `slideoutWidth`
+  // normalizes it and persists the corrected width.
+  let minimumSlideoutWidth: CGFloat = 300
   var slideoutResizeWidth: CGFloat = 0
 
   private var _contentWidth: CGFloat = 0

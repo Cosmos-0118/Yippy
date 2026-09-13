@@ -18,6 +18,7 @@
 "AutoCopyOnOptionSelectTooltip" = "When enabled, keep holding ⌥ until after you release the mouse — releasing ⌥ then copies the highlighted text to the clipboard.\nRequires Accessibility access. After every rebuild, re-grant access below.";
 "AccessibilityNotGranted" = "Accessibility access not granted — auto-copy won't work.";
 "GrantAccess" = "Grant Access…";
+"Copied" = "Copied";
 "Search" = "Search:";
 "Exact" = "Exact";
 "Fuzzy" = "Fuzzy";

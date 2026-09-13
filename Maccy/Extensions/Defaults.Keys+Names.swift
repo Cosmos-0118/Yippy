@@ -72,10 +72,17 @@ extension Defaults.Keys {
   static let size = Key<Int>("historySize", default: 200, suite: preferencesSuite)
   static let sortBy = Key<Sorter.By>("sortBy", default: .lastCopiedAt, suite: preferencesSuite)
   static let suppressClearAlert = Key<Bool>("suppressClearAlert", default: false, suite: preferencesSuite)
-  // Height also doubles as the cap the popup auto-grows to before it scrolls
-  // instead (see Popup.preferredHeight) -- kept modest so a large history
-  // reads as "fixed-size list that scrolls," not "window that keeps growing."
+  // Height doubles as the cap the popup auto-grows to before it scrolls
+  // instead (see Popup.preferredHeight/WindowSizing.openingHeight) -- but
+  // only once `hasCustomWindowSize` is true. Until the user actually drags
+  // the window to a size themselves, this value is just the last size it
+  // happened to occupy (the shipped default, or an earlier auto-fit) and
+  // is not used as a ceiling.
   static let windowSize = Key<NSSize>("windowSize", default: WindowSizing.defaultSize, suite: preferencesSuite)
+  // True once the user has actually dragged the window to a height
+  // themselves, as opposed to it merely having auto-fit to content -- see
+  // `windowSize` above and `FloatingPanel.windowDidEndLiveResize`.
+  static let hasCustomWindowSize = Key<Bool>("hasCustomWindowSize", default: false, suite: preferencesSuite)
   static let windowPosition = Key<NSPoint>("windowPosition", default: NSPoint(x: 0.5, y: 0.8), suite: preferencesSuite)
   static let showApplicationIcons = Key<Bool>("showApplicationIcons", default: false, suite: preferencesSuite)
   static let showHexColorSwatch = Key<Bool>("showHexColorSwatch", default: true, suite: preferencesSuite)

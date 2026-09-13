@@ -143,6 +143,11 @@ enum AutoCopyOnSelect {
     }
   }
 
+  // How long to wait after posting the synthetic ⌘C before checking whether
+  // the pasteboard actually changed -- long enough for a slow frontmost app
+  // to respond to the keystroke and write the new contents.
+  private static let copyConfirmationDelay: TimeInterval = 0.4
+
   private static func fireIfArmed(_ token: Int) {
     guard token != 0, token == pendingArmToken else {
       return
@@ -159,7 +164,25 @@ enum AutoCopyOnSelect {
     guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else {
       return
     }
+    // `handleMouseUp` arms on any Option-held mouse-up, including a bare
+    // click with nothing selected -- confirm the pasteboard actually changed
+    // before showing "Copied", instead of showing it optimistically.
+    let changeCountBeforeCopy = NSPasteboard.general.changeCount
     simulateCopy()
+    DispatchQueue.main.asyncAfter(deadline: .now() + copyConfirmationDelay) {
+      guard didCopySucceed(
+        beforeChangeCount: changeCountBeforeCopy,
+        afterChangeCount: NSPasteboard.general.changeCount
+      ) else {
+        return
+      }
+      AutoCopyToast.show()
+    }
+  }
+
+  /// Pure decision helper, extracted for testability.
+  static func didCopySucceed(beforeChangeCount: Int, afterChangeCount: Int) -> Bool {
+    afterChangeCount != beforeChangeCount
   }
 
   private static func simulateCopy() {
