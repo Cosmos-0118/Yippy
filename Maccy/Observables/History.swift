@@ -324,7 +324,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     }
 
     if modifierFlags.isEmpty {
-      Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
+      Clipboard.shared.copy(item.item)
       if Defaults[.pasteByDefault] {
         AppState.shared.popup.close(afterFocusRestored: Clipboard.shared.paste)
       } else {
@@ -362,7 +362,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
     if modifierFlags.isEmpty {
       AppState.shared.popup.close()
-      Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
+      Clipboard.shared.copy(item.item)
     } else {
       switch HistoryItemAction(modifierFlags) {
       case .copy:
@@ -403,7 +403,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
     Task {
       if stack.modifierFlags.isEmpty {
-        await Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
+        await Clipboard.shared.copy(item.item)
       } else {
         switch HistoryItemAction(stack.modifierFlags) {
         case .copy:
@@ -479,8 +479,9 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
     Task.detached(priority: .userInitiated) { [weak self] in
       let matches = searcher.match(query: query, mode: mode, in: documents)
+      guard let self else { return }
       await MainActor.run {
-        self?.applySearch(matches, generation: generation, query: query)
+        self.applySearch(matches, generation: generation, query: query)
       }
     }
   }

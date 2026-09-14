@@ -47,7 +47,7 @@ struct PinValueView: View {
     let hasPlainText = item.text != nil
     let hasImage = item.image != nil
     let hasFileURLs = !item.fileURLs.isEmpty
-    let hasRichText = item.rtf != nil || item.html != nil
+    let hasRichText = item.rtf != nil || item.rtfd != nil || item.html != nil
 
     // Consider it text content only if it has plain text and doesn't have images or file URLs
     self._isTextContent = State(initialValue: hasPlainText && !hasImage && !hasFileURLs)

@@ -250,6 +250,116 @@ class ClipboardTests: XCTestCase {
     XCTAssertNil(pasteboard.data(forType: .rtf))
   }
 
+  @MainActor
+  func testPreservesRichTextRepresentationsOfASingleItem() {
+    let hookExpectation = expectation(description: "Hook is called")
+    var capturedItem: HistoryItem?
+    clipboard.onNewCopy({ (item: HistoryItem) in
+      capturedItem = item
+      hookExpectation.fulfill()
+    })
+
+    let rtfData = NSAttributedString(string: "rich foo").rtf(
+      from: NSRange(location: 0, length: 8),
+      documentAttributes: [:]
+    )!
+    let htmlData = "<b>foo</b>".data(using: .utf8)!
+
+    let sourceItem = NSPasteboardItem()
+    sourceItem.setString("foo", forType: .string)
+    sourceItem.setData(rtfData, forType: .rtf)
+    sourceItem.setData(htmlData, forType: .html)
+
+    clipboard.start()
+    pasteboard.clearContents()
+    pasteboard.writeObjects([sourceItem])
+
+    waitForExpectations(timeout: 2)
+
+    guard let historyItem = capturedItem else {
+      return XCTFail("Expected a history item to be recorded")
+    }
+
+    clipboard.copy(historyItem)
+
+    // All three representations of the one copied item survive the round trip...
+    XCTAssertEqual(pasteboard.string(forType: .string), "foo")
+    XCTAssertEqual(pasteboard.data(forType: .rtf), rtfData)
+    XCTAssertEqual(pasteboard.data(forType: .html), htmlData)
+    // ...as alternate representations of a single pasteboard item, not separate ones.
+    XCTAssertEqual(pasteboard.pasteboardItems?.count, 1)
+  }
+
+  @MainActor
+  func testMergesNonCollidingPasteboardItemsBackIntoOneOnPaste() {
+    // Some applications (BBEdit, Edge) split one logical copy across 2 pasteboard
+    // items with non-overlapping types. Restoring them as 2 separate items would
+    // reintroduce https://github.com/p0deje/Maccy/issues/78 (content pasted twice).
+    let hookExpectation = expectation(description: "Hook is called")
+    var capturedItem: HistoryItem?
+    clipboard.onNewCopy({ (item: HistoryItem) in
+      capturedItem = item
+      hookExpectation.fulfill()
+    })
+
+    let item1 = NSPasteboardItem()
+    item1.setString("foo", forType: .string)
+    let item2 = NSPasteboardItem()
+    item2.setData(image.tiffRepresentation!, forType: .tiff)
+
+    clipboard.start()
+    pasteboard.clearContents()
+    pasteboard.writeObjects([item1, item2])
+
+    waitForExpectations(timeout: 2)
+
+    guard let historyItem = capturedItem else {
+      return XCTFail("Expected a history item to be recorded")
+    }
+
+    clipboard.copy(historyItem)
+
+    XCTAssertEqual(pasteboard.string(forType: .string), "foo")
+    XCTAssertEqual(pasteboard.data(forType: .tiff), image.tiffRepresentation!)
+    XCTAssertEqual(pasteboard.pasteboardItems?.count, 1)
+  }
+
+  @MainActor
+  func testPreservesDistinctPasteboardItemsWhenTypesCollideWithDifferentValues() {
+    // Table cells and multi-selection copies put the SAME type (e.g. .string) on
+    // several pasteboard items with DIFFERENT values. Flattening them loses data:
+    // reading picks the first, writing picks the last. Item boundaries must survive.
+    let hookExpectation = expectation(description: "Hook is called")
+    var capturedItem: HistoryItem?
+    clipboard.onNewCopy({ (item: HistoryItem) in
+      capturedItem = item
+      hookExpectation.fulfill()
+    })
+
+    let item1 = NSPasteboardItem()
+    item1.setString("cell one", forType: .string)
+    let item2 = NSPasteboardItem()
+    item2.setString("cell two", forType: .string)
+
+    clipboard.start()
+    pasteboard.clearContents()
+    pasteboard.writeObjects([item1, item2])
+
+    waitForExpectations(timeout: 2)
+
+    guard let historyItem = capturedItem else {
+      return XCTFail("Expected a history item to be recorded")
+    }
+
+    XCTAssertEqual(Set(historyItem.contents.map(\.itemIndex)), Set([0, 1]))
+
+    clipboard.copy(historyItem)
+
+    let restoredValues = Set((pasteboard.pasteboardItems ?? []).compactMap { $0.string(forType: .string) })
+    XCTAssertEqual(restoredValues, Set(["cell one", "cell two"]))
+    XCTAssertEqual(pasteboard.pasteboardItems?.count, 2)
+  }
+
   func testHandlesItemsWithoutData() {
     let hookExpectation = expectation(description: "Hook is called")
     pasteboard.clearContents()
@@ -371,5 +481,37 @@ class AutoCopyOnSelectTests: XCTestCase {
 
   func testCopyDidNotSucceedWhenChangeCountUnchanged() {
     XCTAssertFalse(AutoCopyOnSelect.didCopySucceed(beforeChangeCount: 5, afterChangeCount: 5))
+  }
+}
+
+class HistoryItemActionTests: XCTestCase {
+  private let savedPasteByDefault = Defaults[.pasteByDefault]
+  private let savedRemoveFormattingByDefault = Defaults[.removeFormattingByDefault]
+
+  override func tearDown() {
+    Defaults[.pasteByDefault] = savedPasteByDefault
+    Defaults[.removeFormattingByDefault] = savedRemoveFormattingByDefault
+    super.tearDown()
+  }
+
+  func testAutomaticPastePreservesFormattingWhenPlainTextPasteIsEnabled() {
+    Defaults[.pasteByDefault] = true
+    Defaults[.removeFormattingByDefault] = true
+
+    guard case .paste = HistoryItemAction(.command) else {
+      return XCTFail("Command should paste the original clipboard representations")
+    }
+    guard case .pasteWithoutFormatting = HistoryItemAction([.command, .shift]) else {
+      return XCTFail("Shift-Command should paste plain text when enabled")
+    }
+  }
+
+  func testPlainTextPasteShortcutIsUnavailableWhenDisabled() {
+    Defaults[.pasteByDefault] = true
+    Defaults[.removeFormattingByDefault] = false
+
+    guard case .unknown = HistoryItemAction([.command, .shift]) else {
+      return XCTFail("Plain-text paste should require its setting to be enabled")
+    }
   }
 }

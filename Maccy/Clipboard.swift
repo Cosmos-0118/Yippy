@@ -21,7 +21,9 @@ class Clipboard {
     .html,
     .png,
     .rtf,
+    .rtfd,
     .string,
+    .tabularText,
     .tiff
   ]
   private let ignoredTypes: Set<NSPasteboard.PasteboardType> = [
@@ -82,9 +84,31 @@ class Clipboard {
       contents = clearFormatting(contents)
     }
 
-    for content in contents {
-      guard content.type != NSPasteboard.PasteboardType.fileURL.rawValue else { continue }
-      pasteboard.setData(content.value, forType: NSPasteboard.PasteboardType(content.type))
+    let nonFileContents = contents.filter { $0.type != NSPasteboard.PasteboardType.fileURL.rawValue }
+
+    // Most copies are a single logical item with a few alternate
+    // representations (e.g. RTF + HTML + plain text), so writing them all
+    // onto one pasteboard item via setData is correct and matches what most
+    // apps expect. Only when the same type shows up with different values
+    // across source pasteboard items (table cells, multi-selection) does the
+    // flat merge actually lose data — that's the one case worth paying for
+    // separate pasteboard items via writeObjects.
+    if hasCollidingTypes(nonFileContents) {
+      let groups = Dictionary(grouping: nonFileContents, by: \.itemIndex)
+      let pasteboardItems: [NSPasteboardItem] = groups.keys.sorted().compactMap { index in
+        guard let group = groups[index] else { return nil }
+        let pasteItem = NSPasteboardItem()
+        for content in group {
+          guard let value = content.value else { continue }
+          pasteItem.setData(value, forType: NSPasteboard.PasteboardType(content.type))
+        }
+        return pasteItem
+      }
+      pasteboard.writeObjects(pasteboardItems)
+    } else {
+      for content in nonFileContents {
+        pasteboard.setData(content.value, forType: NSPasteboard.PasteboardType(content.type))
+      }
     }
 
     // Use writeObjects for file URLs so that multiple files that are copied actually work.
@@ -186,7 +210,7 @@ class Clipboard {
     // - https://github.com/p0deje/Maccy/issues/78
     // - https://github.com/p0deje/Maccy/issues/472
     var contents = [HistoryItemContent]()
-    pasteboard.pasteboardItems?.forEach({ item in
+    pasteboard.pasteboardItems?.enumerated().forEach({ (index, item) in
       var types = Set(item.types)
       if types.contains(.string) && isEmptyString(item) && !richText(item) {
         return
@@ -209,7 +233,7 @@ class Clipboard {
       }
 
       types.forEach { type in
-        contents.append(HistoryItemContent(type: type.rawValue, value: item.data(forType: type)))
+        contents.append(HistoryItemContent(type: type.rawValue, value: item.data(forType: type), itemIndex: index))
       }
     })
 
@@ -277,6 +301,12 @@ class Clipboard {
       }
     }
 
+    if let rtfd = item.data(forType: .rtfd) {
+      if let attributedString = NSAttributedString(rtfd: rtfd, documentAttributes: nil) {
+        return !attributedString.string.isEmpty
+      }
+    }
+
     if let html = item.data(forType: .html) {
       if let attributedString = NSAttributedString(html: html, documentAttributes: nil) {
         return !attributedString.string.isEmpty
@@ -284,6 +314,16 @@ class Clipboard {
     }
 
     return false
+  }
+
+  // Only true when the same type appears with different bytes on more than
+  // one source pasteboard item (e.g. table cells, multi-selection). In that
+  // case a flat merge would silently drop data, so callers should preserve
+  // item boundaries instead of writing everything onto a single pasteboard item.
+  private func hasCollidingTypes(_ contents: [HistoryItemContent]) -> Bool {
+    Dictionary(grouping: contents, by: \.type).values.contains { group in
+      Set(group.map(\.value)).count > 1
+    }
   }
 
   // Some applications requires window be unfocused and focused back to sync the clipboard.

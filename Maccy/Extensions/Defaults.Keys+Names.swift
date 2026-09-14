@@ -4,7 +4,7 @@ import Defaults
 struct StorageType {
   static let files = StorageType(types: [.fileURL])
   static let images = StorageType(types: [.png, .tiff, .jpeg, .heic])
-  static let text = StorageType(types: [.html, .rtf, .string])
+  static let text = StorageType(types: [.html, .rtf, .rtfd, .string, .tabularText])
   static let all = StorageType(types: files.types + images.types + text.types)
 
   var types: [NSPasteboard.PasteboardType]

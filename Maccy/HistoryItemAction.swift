@@ -11,26 +11,16 @@ enum HistoryItemAction {
     switch modifierFlags {
     case .command where !Defaults[.pasteByDefault]:
       self = .copy
-    case .command where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
+    case .command where Defaults[.pasteByDefault]:
       self = .paste
-    case .command where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      self = .pasteWithoutFormatting
-    case .option where !Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
+    case .option where !Defaults[.pasteByDefault]:
       self = .paste
-    case .option where !Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      self = .pasteWithoutFormatting
-    case .option where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
+    case .option where Defaults[.pasteByDefault]:
       self = .copy
-    case .option where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      self = .copy
-    case [.option, .shift] where !Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
-      self = .pasteWithoutFormatting
     case [.option, .shift] where !Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      self = .paste
-    case [.command, .shift] where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
       self = .pasteWithoutFormatting
     case [.command, .shift] where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      self = .paste
+      self = .pasteWithoutFormatting
     default:
       self = .unknown
     }
@@ -40,25 +30,15 @@ enum HistoryItemAction {
     switch self {
     case .copy where !Defaults[.pasteByDefault]:
       return .command
-    case .paste where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
+    case .paste where Defaults[.pasteByDefault]:
       return .command
-    case .pasteWithoutFormatting where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      return .command
-    case .paste where !Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
+    case .paste where !Defaults[.pasteByDefault]:
+      return .option
+    case .copy where Defaults[.pasteByDefault]:
       return .option
     case .pasteWithoutFormatting where !Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      return .option
-    case .copy where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
-      return .option
-    case .copy where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      return .option
-    case .pasteWithoutFormatting where !Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
       return [.option, .shift]
-    case .paste where !Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
-      return [.option, .shift]
-    case .pasteWithoutFormatting where Defaults[.pasteByDefault] && !Defaults[.removeFormattingByDefault]:
-      return [.command, .shift]
-    case .paste where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
+    case .pasteWithoutFormatting where Defaults[.pasteByDefault] && Defaults[.removeFormattingByDefault]:
       return [.command, .shift]
     default:
       return []

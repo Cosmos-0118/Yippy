@@ -131,6 +131,8 @@ class HistoryItem {
       text
     } else if let rtf = rtf, !rtf.string.isEmpty {
       rtf.string
+    } else if let rtfd = rtfd, !rtfd.string.isEmpty {
+      rtfd.string
     } else if let html = html, !html.string.isEmpty {
       html.string
     } else {
@@ -185,6 +187,15 @@ class HistoryItem {
     }
 
     return NSAttributedString(rtf: data, documentAttributes: nil)
+  }
+
+  var rtfdData: Data? { contentData([.rtfd]) }
+  var rtfd: NSAttributedString? {
+    guard let data = rtfdData else {
+      return nil
+    }
+
+    return NSAttributedString(rtfd: data, documentAttributes: nil)
   }
 
   func clearDecodedImageCache() {

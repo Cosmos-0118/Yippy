@@ -204,6 +204,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
       Defaults[.enabledPasteboardTypes] = types
     }
 
+    ensureMigration(key: "2026-09-14-add-rtfd-tabular-text") {
+      var types = Defaults[.enabledPasteboardTypes]
+      if !types.isDisjoint(with: StorageType.text.types) {
+        types.formUnion(StorageType.text.types)
+      }
+      Defaults[.enabledPasteboardTypes] = types
+    }
+
     // Re-dated (was "2026-08-31-..."): that key could already be marked done
     // for installs where the old unconditional-write bug silently swallowed a
     // failure. The new date gives every install one retry under the now-
