@@ -50,8 +50,25 @@ enum AutoCopyOnSelect {
     guard !AXIsProcessTrusted() else {
       return
     }
+    Defaults[.accessibilityPromptOutstanding] = true
     let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
     AXIsProcessTrustedWithOptions(options)
+  }
+
+  /// Call once at launch. Flipping Yippy's switch in System Settings →
+  /// Privacy & Security → Accessibility SIGKILLs the process on the spot
+  /// (no crash report — the app just vanishes), so a launch that finds a
+  /// prompt outstanding but trust now granted means the user just approved
+  /// us and reopened the app. Clears the flag and logs it.
+  static func confirmAccessibilityGrantedIfNeeded() {
+    guard Defaults[.accessibilityPromptOutstanding] else {
+      return
+    }
+    guard AXIsProcessTrusted() else {
+      return
+    }
+    Defaults[.accessibilityPromptOutstanding] = false
+    logger.info("Accessibility access granted — auto-copy on Option-select is now active.")
   }
 
   /// Pure decision helper, extracted for testability.

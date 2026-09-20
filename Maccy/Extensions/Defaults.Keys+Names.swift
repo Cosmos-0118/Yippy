@@ -25,6 +25,11 @@ extension Defaults.Keys {
 #endif
 
   static let autoCopyOnOptionSelect = Key<Bool>("autoCopyOnOptionSelect", default: false, suite: preferencesSuite)
+  // Set when we show the system Accessibility prompt, cleared once trust is
+  // observed. macOS SIGKILLs the app the moment its Accessibility switch is
+  // flipped, so a relaunch with this still set + now trusted means the grant
+  // just landed (see confirmAccessibilityGrantedIfNeeded).
+  static let accessibilityPromptOutstanding = Key<Bool>("accessibilityPromptOutstanding", default: false, suite: preferencesSuite)
   static let clearOnQuit = Key<Bool>("clearOnQuit", default: false, suite: preferencesSuite)
   static let clearSystemClipboard = Key<Bool>("clearSystemClipboard", default: false, suite: preferencesSuite)
   static let clipboardCheckInterval = Key<Double>("clipboardCheckInterval", default: 0.5, suite: preferencesSuite)

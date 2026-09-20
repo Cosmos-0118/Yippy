@@ -136,6 +136,13 @@ struct GeneralSettingsPane: View {
             }
             .controlSize(.small)
           }
+          // Flipping the switch in System Settings SIGKILLs Yippy on the
+          // spot (no crash report — it just vanishes). Say so upfront, or
+          // the grant reads as a crash and users go toggling things here.
+          Text("AccessibilityQuitsAppNote", tableName: "GeneralSettings")
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(.secondary)
+            .controlSize(.small)
         }
       }
       .onAppear {

@@ -69,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     Clipboard.shared.onNewCopy { History.shared.add($0) }
     Clipboard.shared.start()
     AutoCopyOnSelect.start()
+    AutoCopyOnSelect.confirmAccessibilityGrantedIfNeeded()
 
     Task {
       for await _ in Defaults.updates(.clipboardCheckInterval, initial: false) {
