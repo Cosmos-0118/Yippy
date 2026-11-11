@@ -67,7 +67,16 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
     item.previewableText
   }
   var thumbnailImage: NSImage?
-  var applicationImage: ApplicationImage
+  // Resolved on first access, not in `init`: resolving it reads the item's
+  // `contents` relationship (to detect Universal Clipboard), which faults in
+  // every content blob -- images included -- for the whole history at launch.
+  @ObservationIgnored private var resolvedApplicationImage: ApplicationImage?
+  var applicationImage: ApplicationImage {
+    if let resolvedApplicationImage { return resolvedApplicationImage }
+    let image = ApplicationImageCache.shared.getImage(item: item)
+    resolvedApplicationImage = image
+    return image
+  }
 
   // 10k characters seems to be more than enough on large displays
   var text: String { previewText.shortened(to: 10_000) }
@@ -116,7 +125,6 @@ class HistoryItemDecorator: Identifiable, Hashable, HasVisibility {
     self.item = item
     self.shortcuts = shortcuts
     self.title = item.title
-    self.applicationImage = ApplicationImageCache.shared.getImage(item: item)
 
     synchronizeItemPin()
     synchronizeItemTitle()

@@ -450,11 +450,40 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @MainActor
   private func findSimilarItem(_ item: HistoryItem) -> HistoryItem? {
-    if let duplicate = all.first(where: { $0.item != item && $0.item.supersedes(item) }) {
-      return duplicate.item
+    if let duplicate = findSupersedingItem(of: item) {
+      return duplicate
     }
 
     return isModified(item)
+  }
+
+  /// Same result as `all.first { $0.item != item && $0.item.supersedes(item) }`,
+  /// but the comparison runs as SQL against a throwaway context. Walking
+  /// `contents` on the main context would fault every history item's blobs
+  /// (images, RTF, HTML) into memory and keep them there for the app's lifetime.
+  @MainActor
+  private func findSupersedingItem(of item: HistoryItem) -> HistoryItem? {
+    let comparable = item.comparableContents
+    guard !comparable.isEmpty else {
+      // Vacuously superseded, as `supersedes` always has been.
+      return all.first(where: { $0.item != item })?.item
+    }
+
+    let scratch = ModelContext(Storage.shared.container)
+    var candidates: Set<PersistentIdentifier>?
+    for (type, value) in comparable {
+      let descriptor = FetchDescriptor<HistoryItemContent>(
+        predicate: #Predicate { $0.type == type && $0.value == value }
+      )
+      guard let matches = try? scratch.fetch(descriptor) else { return nil }
+      let ids = Set(matches.compactMap { $0.item?.persistentModelID })
+      candidates = candidates.map { $0.intersection(ids) } ?? ids
+      if candidates?.isEmpty == true { return nil }
+    }
+
+    guard let candidates else { return nil }
+    let newID = item.persistentModelID
+    return all.first(where: { $0.item.persistentModelID != newID && candidates.contains($0.item.persistentModelID) })?.item
   }
 
   private func isModified(_ item: HistoryItem) -> HistoryItem? {

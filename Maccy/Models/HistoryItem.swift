@@ -92,6 +92,13 @@ class HistoryItem {
       }
   }
 
+  /// The (type, value) pairs that decide whether another item supersedes this one.
+  var comparableContents: [(type: String, value: Data?)] {
+    contents
+      .filter { !Self.transientTypes.contains($0.type) }
+      .map { ($0.type, $0.value) }
+  }
+
   func generateTitle() -> String {
     guard image == nil else {
       Task {
