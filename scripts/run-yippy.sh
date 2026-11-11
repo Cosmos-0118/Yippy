@@ -160,7 +160,6 @@ prompt_choice() {
   done
   while true; do
     print -P "  ${C_BOLD}${prompt}${C_RESET}" > /dev/tty
-    local i
     for (( i = 1; i <= ${#values}; i++ )); do
       if [[ "${values[$i]}" == "${default}" ]]; then
         print "    $i) ${labels[$i]} (default)" > /dev/tty
