@@ -331,6 +331,24 @@ if ! ditto "${BUILT_APP_PATH}" "${APP_PATH}"; then
 fi
 ok "Staged ${APP_PATH}"
 
+# macOS ties the Accessibility grant (needed for auto-paste) to the app's code
+# signature. An ad-hoc signature changes on every build, so the grant goes
+# stale and ⌘V is silently dropped. Re-sign with a stable identity so one grant
+# survives rebuilds. Override with YIPPY_SIGN_IDENTITY=<name or hash>.
+step "Signing"
+sign_identity="${YIPPY_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)"$/\1/p' | head -1)}"
+if [[ -n "${sign_identity}" ]] && codesign --force --deep --sign "${sign_identity}" "${APP_PATH}" >/dev/null 2>&1; then
+  ok "Signed with \"${sign_identity}\" ${C_DIM}(Accessibility grant persists across rebuilds)${C_RESET}"
+  if [[ "$(defaults read dev.cosmos0118.Yippy yippySignedIdentity 2>/dev/null)" != "${sign_identity}" ]]; then
+    # Identity changed (or first stable signing): drop the stale ad-hoc grant once.
+    tccutil reset Accessibility dev.cosmos0118.Yippy >/dev/null 2>&1 || true
+    defaults write dev.cosmos0118.Yippy yippySignedIdentity "${sign_identity}"
+    warn "Re-grant Accessibility once: System Settings → Privacy & Security → Accessibility → Yippy"
+  fi
+else
+  warn "No signing identity found; left ad-hoc signed. Auto-paste needs Accessibility re-granted after every rebuild."
+fi
+
 # ---- Launch ---------------------------------------------------------------
 
 if (( LAUNCH )); then

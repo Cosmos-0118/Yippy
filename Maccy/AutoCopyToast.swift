@@ -10,7 +10,7 @@ import SwiftUI
 /// toast is shown from inside that same flow -- stealing activation here
 /// would break the *next* auto-copy.
 enum AutoCopyToast {
-  private static let size = NSSize(width: 92, height: 36)
+  private static var size = NSSize(width: 92, height: 36)
   private static let visibleDuration: TimeInterval = 0.9
   private static let fadeDuration: TimeInterval = 0.25
   // Offsets the toast up and to the right of the cursor so it doesn't sit
@@ -20,9 +20,12 @@ enum AutoCopyToast {
   private static let panel = makePanel()
   private static var dismissWorkItem: DispatchWorkItem?
 
-  static func show() {
+  static func show(message: String? = nil, systemImage: String = "checkmark.circle.fill") {
     dismissWorkItem?.cancel()
 
+    let content = NSHostingView(rootView: ToastContentView(message: message, systemImage: systemImage))
+    size = content.fittingSize
+    panel.contentView = content
     positionNearCursor()
     panel.alphaValue = 1
     panel.orderFrontRegardless()
@@ -36,7 +39,7 @@ enum AutoCopyToast {
       }
     }
     dismissWorkItem = workItem
-    DispatchQueue.main.asyncAfter(deadline: .now() + visibleDuration, execute: workItem)
+    DispatchQueue.main.asyncAfter(deadline: .now() + (message == nil ? visibleDuration : 2.5), execute: workItem)
   }
 
   private static func positionNearCursor() {
@@ -72,7 +75,7 @@ enum AutoCopyToast {
     panel.hasShadow = true
     panel.animationBehavior = .none
     panel.alphaValue = 0
-    panel.contentView = NSHostingView(rootView: ToastContentView())
+    panel.contentView = NSHostingView(rootView: ToastContentView(message: nil, systemImage: "checkmark.circle.fill"))
     return panel
   }
 }
@@ -86,12 +89,20 @@ private final class ToastPanel: NSPanel {
 }
 
 private struct ToastContentView: View {
+  var message: String?
+  var systemImage: String
+
   var body: some View {
     HStack(spacing: 6) {
-      Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(.green)
-      Text("Copied", tableName: "GeneralSettings")
-        .foregroundStyle(.primary)
+      Image(systemName: systemImage)
+        .foregroundStyle(message == nil ? Color.green : Color.orange)
+      if let message {
+        Text(message)
+          .foregroundStyle(.primary)
+      } else {
+        Text("Copied", tableName: "GeneralSettings")
+          .foregroundStyle(.primary)
+      }
     }
     .font(.system(size: 13, weight: .medium))
     .padding(.horizontal, 12)

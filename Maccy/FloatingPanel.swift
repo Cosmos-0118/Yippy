@@ -362,8 +362,8 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
       return
     }
 
-    guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier else { return }
-
+    // Activate even when macOS already handed focus to some third app on
+    // close; bailing out here used to drop the paste silently.
     appToRestore.activate()
     waitForActivation(of: appToRestore, completion: completion)
   }

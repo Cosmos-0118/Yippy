@@ -135,7 +135,12 @@ class Clipboard {
 
   // Based on https://github.com/Clipy/Clipy/blob/develop/Clipy/Sources/Services/PasteService.swift.
   func paste() {
-    Accessibility.check()
+    // Without Accessibility trust the synthetic ⌘V below is silently dropped.
+    // The item is already on the clipboard, so say so instead of failing quietly.
+    guard Accessibility.check() else {
+      AutoCopyToast.show(message: "Copied — allow Accessibility to auto-paste", systemImage: "exclamationmark.triangle.fill")
+      return
+    }
 
     // Add flag that left/right modifier key has been pressed.
     // See https://github.com/TermiT/Flycut/pull/18 for details.

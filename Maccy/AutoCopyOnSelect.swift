@@ -203,7 +203,6 @@ enum AutoCopyOnSelect {
   }
 
   private static func simulateCopy() {
-    Accessibility.check()
     // Mirror Clipboard.paste(): flag that a modifier was pressed and force
     // the QWERTY keycode when the layout switches to QWERTY while ⌘ is held.
     let commandFlag = CGEventFlags(rawValue: UInt64(NSEvent.ModifierFlags.command.rawValue) | 0x000008)
